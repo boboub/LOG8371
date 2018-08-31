@@ -144,18 +144,20 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testEnableDisableBehaviour() throws Exception {
+        logger.info("--> start testEnableDisableBehaviour");
         IndexResponse indexResponse = index("test", "type", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-
+        logger.info("--> indexed {}", "test");
 
         indexResponse = index("test1", "type", jsonBuilder()
                 .startObject()
                 .field("name", "value1")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        logger.info("--> indexed {}", "test1");
 
         refresh();
         // wait for all replicas to be started (to make sure that there are no more cluster state updates when we disable licensing)
@@ -164,6 +166,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         Client client = internalCluster().transportClient();
 
+        logger.info("--> disableLicensing");
         disableLicensing();
 
         assertElasticsearchSecurityException(() -> client.admin().indices().prepareStats().get());
@@ -171,6 +174,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertElasticsearchSecurityException(() -> client.admin().cluster().prepareHealth().get());
         assertElasticsearchSecurityException(() -> client.admin().cluster().prepareNodesStats().get());
 
+        logger.info("--> enableLicensing");
         enableLicensing(randomFrom(License.OperationMode.values()));
 
         IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats().get();
