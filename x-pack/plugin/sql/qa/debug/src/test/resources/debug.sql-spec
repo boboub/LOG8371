@@ -3,4 +3,4 @@
 //
 
 debug
-SELECT 5 + 2 AS a;
+SELECT languages AS l, COUNT(*) AS c FROM test_emp GROUP BY l HAVING languages > 2;
