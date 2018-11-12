@@ -146,7 +146,7 @@ Indices can only be split if they satisfy the following requirements:
 * The source index must have fewer primary shards than the target index.
 
 * The number of primary shards in the target index must be a factor of the
-  number of primary shards in the source index.
+  `index.number_of_routing_shards` setting value in the source index.
 
 * The node handling the split process must have sufficient free disk space to
   accommodate a second copy of the existing index.
