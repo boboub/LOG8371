@@ -145,6 +145,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneCast(),
                 // order by alignment of the aggs
                 new SortAggregateOnOrderBy()
+        //, new OrderByAggregate()
                 // requires changes in the folding
                 // since the exact same function, with the same ID can appear in multiple places
                 // see https://github.com/elastic/x-pack-elasticsearch/issues/3527
@@ -846,6 +847,47 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
             return ob;
         }
+    }
+
+    static class OrderByAggregate extends OptimizerRule<OrderBy> {
+
+        @Override
+        protected LogicalPlan rule(OrderBy ob) {
+            List<Order> orders = ob.order();
+
+            for (Order order : orders) {
+            }
+
+            // remove constants
+            List<Order> nonConstant = order.stream().filter(o -> !o.child().foldable()).collect(toList());
+
+            // if the sort points to an agg, change the agg order based on the order
+            if (ob.child() instanceof Aggregate) {
+                Aggregate a = (Aggregate) ob.child();
+                List<Expression> groupings = new ArrayList<>(a.groupings());
+                boolean orderChanged = false;
+
+                for (int orderIndex = 0; orderIndex < nonConstant.size(); orderIndex++) {
+                    Order o = nonConstant.get(orderIndex);
+                    Expression fieldToOrder = o.child();
+                    for (Expression group : a.groupings()) {
+                        if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
+                            // move grouping in front
+                            groupings.remove(group);
+                            groupings.add(orderIndex, group);
+                            orderChanged = true;
+                        }
+                    }
+                }
+
+                if (orderChanged) {
+                    Aggregate newAgg = new Aggregate(a.source(), a.child(), groupings, a.aggregates());
+                    return new OrderBy(ob.source(), newAgg, ob.order());
+                }
+            }
+            return ob;
+        }
+
     }
 
     static class CombineLimits extends OptimizerRule<Limit> {

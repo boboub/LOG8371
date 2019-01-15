@@ -3,7 +3,7 @@
 //
 
 debug
-SHOW TABLES "test*,-test_a*";
+SELECT gender, AVG(salary) AS a FROM test_emp GROUP BY gender ORDER BY a ASC;
 
        name        |     type      
 test_alias         |ALIAS          

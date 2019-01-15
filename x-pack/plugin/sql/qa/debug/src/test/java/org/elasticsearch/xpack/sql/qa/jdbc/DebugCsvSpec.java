@@ -69,7 +69,7 @@ public class DebugCsvSpec extends SpecBaseIntegrationTestCase {
         //
         // uncomment this to printout the result set and create new CSV tests
         //
-        //JdbcTestUtils.logLikeCLI(elastic, log);
-        JdbcAssert.assertResultSets(expected, elastic, log);
-        }
+        JdbcTestUtils.logLikeCLI(elastic, log);
+        //JdbcAssert.assertResultSets(expected, elastic, log);
+    }
 }
