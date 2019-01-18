@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -25,6 +26,8 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.action.SqlQueryAction;
+import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractor;
@@ -32,12 +35,14 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.HitExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.ReferenceInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
+import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
@@ -45,9 +50,13 @@ import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
+import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -63,22 +72,20 @@ public class Querier {
 
     private final Logger log = LogManager.getLogger(getClass());
 
+    private final Configuration cfg;
     private final TimeValue keepAlive, timeout;
     private final int size;
     private final Client client;
     @Nullable
     private final QueryBuilder filter;
 
-    public Querier(Client client, Configuration cfg) {
-        this(client, cfg.requestTimeout(), cfg.pageTimeout(), cfg.filter(), cfg.pageSize());
-    }
-
-    public Querier(Client client, TimeValue keepAlive, TimeValue timeout, QueryBuilder filter, int size) {
-        this.client = client;
-        this.keepAlive = keepAlive;
-        this.timeout = timeout;
-        this.filter = filter;
-        this.size = size;
+    public Querier(SqlSession sqlSession) {
+        this.client = sqlSession.client();
+        this.cfg = sqlSession.configuration();
+        this.keepAlive = cfg.requestTimeout();
+        this.timeout = cfg.pageTimeout();
+        this.filter = cfg.filter();
+        this.size = cfg.pageSize();
     }
 
     public void query(Schema schema, QueryContainer query, String index, ActionListener<SchemaRowSet> listener) {
@@ -95,7 +102,19 @@ public class Querier {
 
         SearchRequest search = prepareRequest(client, sourceBuilder, timeout, Strings.commaDelimitedListToStringArray(index));
 
-        ActionListener<SearchResponse> l;
+        // custom sorting necessary
+        for (Sort sort : query.sort()) {
+            if (sort instanceof AttributeSort) {
+                AttributeSort as = (AttributeSort) sort;
+                if (as.attribute() instanceof AggregateFunctionAttribute) {
+                    throw new UnsupportedOperationException();
+                }
+            }
+
+            listener = new LocalAggregationSorterListener(schema, listener);
+        }
+        ActionListener<SearchResponse> l = null;
+        
         if (query.isAggsOnly()) {
             if (query.aggs().useImplicitGroupBy()) {
                 l = new ImplicitGroupActionListener(listener, client, timeout, schema, query, search);
@@ -114,6 +133,75 @@ public class Querier {
         SearchRequest search = client.prepareSearch(indices).setSource(source).setTimeout(timeout).request();
         search.allowPartialSearchResults(false);
         return search;
+    }
+
+    /**
+     * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
+     * 
+     * This listener consumes the whole result set, sorts it in memory then send the paginates
+     * the results back the user.
+     */
+    class LocalAggregationSorterListener implements ActionListener<SchemaRowSet> {
+
+        private final Schema schema;
+        private final ActionListener<SchemaRowSet> listener;
+
+        // this list acts an accumulator. it's only used by one thread at a time
+        // however different threads can access it during the listener life-cycle.
+        // thus, it's not an issue with concurrency but rather visibility of the data
+        // between the threads that take turns.
+        //
+        // this is handled through the synchronized block below - the read doesn't need
+        // to be synchronized since there's no need for locking (there's no concurrency)
+        private final List<List<?>> data = new ArrayList<>();
+
+        LocalAggregationSorterListener(Schema schema, ActionListener<SchemaRowSet> listener) {
+            this.listener = listener;
+            this.schema = schema;
+        }
+
+        @Override
+        public void onResponse(SchemaRowSet response) {
+            int pageSize = response.size();
+            
+            // 1. consume all pages received
+            // use a synchronized block for visibility purposes (there's no concurrency)
+            synchronized (data) {
+                response.forEachRow(r -> {
+                    List<Object> row = new ArrayList<>(r.columnCount());
+                    r.forEachColumn(row::add);
+                    data.add(row);
+                });
+            }
+                
+            Cursor cursor = response.nextPageCursor();
+            // 1a. trigger a next call if there's still data
+            if (cursor != Cursor.EMPTY) {
+                // trigger a next call
+                // the planExecutor could be used directly however
+                // by going through the client properly increments the stats
+                new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
+                        .cursor(Cursors.encodeToString(Version.CURRENT, cursor))
+                        .fetchSize(cfg.pageSize())
+                        .mode(cfg.mode())
+                        .pageTimeout(cfg.pageTimeout())
+                        .requestTimeout(cfg.requestTimeout())
+                        .zoneId(cfg.zoneId())
+                        .execute();
+                // make sure to bail out afterwards as we'll get called by a different thread
+                return;
+            }
+            // no more data available, the last thread sends the response
+            // 2. sort it locally
+
+            // 3. send the in-memory view to the client
+            listener.onResponse(new PagingListRowSet(schema, data, pageSize));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -323,7 +411,7 @@ public class Querier {
                 // if there's an id, try to setup next scroll
                 if (scrollId != null &&
                         // is all the content already retrieved?
-                        (Boolean.TRUE.equals(response.isTerminatedEarly()) 
+                        (Boolean.TRUE.equals(response.isTerminatedEarly())
                                 || response.getHits().getTotalHits().value == hits.length
                                 || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll

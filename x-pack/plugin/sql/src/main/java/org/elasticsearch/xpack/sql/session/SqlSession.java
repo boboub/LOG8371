@@ -40,13 +40,8 @@ public class SqlSession {
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
-
+    
     private final Configuration configuration;
-
-    public SqlSession(SqlSession other) {
-        this(other.configuration, other.client, other.functionRegistry, other.indexResolver,
-             other.preAnalyzer, other.verifier, other.optimizer, other.planner);
-    }
 
     public SqlSession(Configuration configuration, Client client, FunctionRegistry functionRegistry,
             IndexResolver indexResolver,

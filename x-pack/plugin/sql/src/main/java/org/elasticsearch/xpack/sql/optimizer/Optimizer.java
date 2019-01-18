@@ -144,8 +144,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneOrderByNestedFields(),
                 new PruneCast(),
                 // order by alignment of the aggs
-                new SortAggregateOnOrderBy()
-        //, new OrderByAggregate()
+                new SortAggregateOnOrderBy(), new OrderByAggregate()
                 // requires changes in the folding
                 // since the exact same function, with the same ID can appear in multiple places
                 // see https://github.com/elastic/x-pack-elasticsearch/issues/3527
@@ -821,6 +820,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // remove constants
             List<Order> nonConstant = order.stream().filter(o -> !o.child().foldable()).collect(toList());
 
+            // TODO: handle HAVING case - maybe simply use a transformation
+
             // if the sort points to an agg, change the agg order based on the order
             if (ob.child() instanceof Aggregate) {
                 Aggregate a = (Aggregate) ob.child();
@@ -855,39 +856,50 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(OrderBy ob) {
             List<Order> orders = ob.order();
 
+            // 1. collect aggs inside an order by
+            List<NamedExpression> aggs = new ArrayList<>();
             for (Order order : orders) {
+                if (Functions.isAggregate(order.child()) || order.child() instanceof AggregateFunctionAttribute) {
+                    aggs.add(Expressions.wrapAsNamed(order.child()));
+                }
+            }
+            if (aggs.isEmpty()) {
+                return ob;
             }
 
-            // remove constants
-            List<Order> nonConstant = order.stream().filter(o -> !o.child().foldable()).collect(toList());
+            // 2. add them to the corresponding Aggregate but be sure to project them away
+            UnaryPlan node = ob;
+            Filter having = null;
+            if (ob.child() instanceof Filter) {
+                having = (Filter) ob.child();
+                node = having;
+            }
 
-            // if the sort points to an agg, change the agg order based on the order
-            if (ob.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) ob.child();
-                List<Expression> groupings = new ArrayList<>(a.groupings());
-                boolean orderChanged = false;
-
-                for (int orderIndex = 0; orderIndex < nonConstant.size(); orderIndex++) {
-                    Order o = nonConstant.get(orderIndex);
-                    Expression fieldToOrder = o.child();
-                    for (Expression group : a.groupings()) {
-                        if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
-                            // move grouping in front
-                            groupings.remove(group);
-                            groupings.add(orderIndex, group);
-                            orderChanged = true;
-                        }
+            if (node.child() instanceof Aggregate) {
+                Aggregate agg = (Aggregate) node.child();
+                
+                List<NamedExpression> missing = new ArrayList<>();
+                
+                for (NamedExpression orderedAgg : aggs) {
+                    if (Expressions.anyMatch(agg.aggregates(), e -> Expressions.equalsAsAttribute(e, orderedAgg)) == false) {
+                        missing.add(orderedAgg);
                     }
                 }
-
-                if (orderChanged) {
-                    Aggregate newAgg = new Aggregate(a.source(), a.child(), groupings, a.aggregates());
-                    return new OrderBy(ob.source(), newAgg, ob.order());
+                if (missing.isEmpty()) {
+                    return ob;
                 }
-            }
-            return ob;
-        }
 
+                node = new Aggregate(agg.source(), agg.child(), agg.groupings(), CollectionUtils.combine(agg.aggregates(), missing));
+                if (having != null) {
+                    node = new Filter(having.source(), node, having.condition());
+                }
+                return new Project(ob.source(), new OrderBy(ob.source(), node, ob.order()), agg.output());
+            }
+            // expected an aggregate
+            else {
+                throw new UnsupportedOperationException("not implemented yet");
+            }
+        }
     }
 
     static class CombineLimits extends OptimizerRule<Limit> {

@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
 
-@TestLogging("org.elasticsearch.xpack.sql:TRACE")
+@TestLogging(JdbcTestUtils.SQL_TRACE)
 public class DebugCsvSpec extends SpecBaseIntegrationTestCase {
 
     @ClassRule
