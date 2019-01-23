@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,6 +28,8 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.action.SqlQueryAction;
+import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractor;
@@ -54,6 +57,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -66,6 +70,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
 // TODO: add retry/back-off
@@ -158,7 +163,7 @@ public class Querier {
         }
 
         if (aggSortingRequired) {
-            listener = new LocalAggregationSorterListener(schema, listener, sortingColumns);
+            listener = new LocalAggregationSorterListener(schema, listener, sortingColumns, query.limit());
         }
         return listener;
     }
@@ -174,101 +179,107 @@ public class Querier {
 
         private final Schema schema;
         private final ActionListener<SchemaRowSet> listener;
-        private final List<Tuple<Integer, Comparator>> sortingColumns;
 
         // keep the top N entries.
-        // The queue is only used by one thread at a time
-        // however different threads can access it during the listener life-cycle.
-        // thus, it's not an issue with concurrency but rather visibility of the data
-        // between the threads that take turns.
-        //
-        // this is handled through the synchronized block below - the read doesn't need
-        // to be synchronized since there's no need for locking (there's no concurrency)
-        private final PriorityQueue<Tuple<List<?>, Integer>> data = new PriorityQueue<Tuple<List<?>, Integer>>(100) {
-
-            // compare row based on the received attribute sort
-            // if a sort item is not in the list, it is assumed the sorting happened in ES
-            // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
-            //
-            // Take for example ORDER BY a, x, b, y
-            // a, b - are sorted in ES
-            // x, y - need to be sorted client-side
-            // sorting on x kicks in, only if the values for a are equal.
-
-            // thanks to @jpountz for the row ordering to keep things in place
-            @SuppressWarnings("unchecked")
-            @Override
-            protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
-                for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-                    int i = tuple.v1().intValue();
-                    Comparator comparator = tuple.v2();
-
-                    Object vl = l.v1().get(i);
-                    Object vr = r.v1().get(i);
-                    if (comparator != null) {
-                        int result = comparator.compare(vl, vr);
-                        if (result != 0) {
-                            return result < 0;
-                        }
-                    } else {
-                        // check the values - if they are equal move to the next comparator
-                        // otherwise return the row order
-                        if ((vl == null && vr != null) || vl.equals(vr) == false) {
-                            return l.v2().compareTo(r.v2()) > 0;
-                        }
-                    }
-                }
-                // everything is equal, fall-back to the row order
-                return l.v2().compareTo(r.v2()) > 0;
-            }
-        };
+        private final PriorityQueue<Tuple<List<?>, Integer>> data;
+        private final AtomicInteger counter = new AtomicInteger();
 
         LocalAggregationSorterListener(Schema schema, ActionListener<SchemaRowSet> listener,
-                List<Tuple<Integer, Comparator>> sortingColumns) {
+                List<Tuple<Integer, Comparator>> sortingColumns, int limit) {
             this.listener = listener;
             this.schema = schema;
-            this.sortingColumns = sortingColumns;
+
+            // The queue is only used by one thread at a time
+            // however different threads can access it during the listener life-cycle.
+            // thus, it's not an issue with concurrency but rather visibility of the data
+            // between the threads that take turns.
+            //
+            // this is handled through the synchronized block below - the read doesn't need
+            // to be synchronized since there's no need for locking (there's no concurrency)
+            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(Math.max(limit, 100)) {
+
+                // compare row based on the received attribute sort
+                // if a sort item is not in the list, it is assumed the sorting happened in ES
+                // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
+                //
+                // Take for example ORDER BY a, x, b, y
+                // a, b - are sorted in ES
+                // x, y - need to be sorted client-side
+                // sorting on x kicks in, only if the values for a are equal.
+
+                // thanks to @jpountz for the row ordering to keep things in place
+                @SuppressWarnings("unchecked")
+                @Override
+                protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
+                    for (Tuple<Integer, Comparator> tuple : sortingColumns) {
+                        int i = tuple.v1().intValue();
+                        Comparator comparator = tuple.v2();
+
+                        Object vl = l.v1().get(i);
+                        Object vr = r.v1().get(i);
+                        if (comparator != null) {
+                            int result = comparator.compare(vl, vr);
+                            if (result != 0) {
+                                return result < 0;
+                            }
+                        } else {
+                            // check the values - if they are equal move to the next comparator
+                            // otherwise return the row order
+                            if ((vl == null && vr != null) || vl.equals(vr) == false) {
+                                return l.v2().compareTo(r.v2()) < 0;
+                            }
+                        }
+                    }
+                    // everything is equal, fall-back to the row order
+                    return l.v2().compareTo(r.v2()) < 0;
+                }
+            };
         }
 
         @Override
         public void onResponse(SchemaRowSet response) {
-            int pageSize = response.size();
-            
             // 1. consume all pages received
             // use a synchronized block for visibility purposes (there's no concurrency)
             synchronized (data) {
                 response.forEachRow(r -> {
                     List<Object> row = new ArrayList<>(r.columnCount());
-                    r.forEachColumn(row::add);
-                    data.add(new Tuple<>(row, data.size()));
+                    r.forEach(row::add);
+                    data.add(new Tuple<>(row, counter.getAndIncrement()));
                 });
             }
                 
             Cursor cursor = response.nextPageCursor();
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
-                //                // trigger a next call
-                //                // the planExecutor could be used directly however
-                //                // by going through the client properly increments the stats
-                //                new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
-                //                        .cursor(Cursors.encodeToString(Version.CURRENT, cursor))
-                //                        .fetchSize(cfg.pageSize())
-                //                        .mode(cfg.mode())
-                //                        .pageTimeout(cfg.pageTimeout())
-                //                        .requestTimeout(cfg.requestTimeout())
-                //                        .zoneId(cfg.zoneId())
-                //                        .execute();
-                //                // make sure to bail out afterwards as we'll get called by a different thread
-                //                return;
+                // trigger a next call
+                // the planExecutor could be used directly however
+                // by going through the client properly increments the stats
+                new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
+                        .cursor(Cursors.encodeToString(Version.CURRENT, cursor))
+                        .fetchSize(cfg.pageSize())
+                        .mode(cfg.mode())
+                        .pageTimeout(cfg.pageTimeout())
+                        .requestTimeout(cfg.requestTimeout())
+                        .zoneId(cfg.zoneId())
+                        .execute(ActionListener.wrap(r -> {
+                            synchronized (data) {
+                                r.rows().forEach(l -> data.add(new Tuple<>(l, counter.getAndIncrement())));
+                            }
+                            sendResponse();
+                        }, this::onFailure));
+                // make sure to bail out afterwards as we'll get called by a different thread
+                return;
             }
 
             // no more data available, the last thread sends the response
-
             // 2. send the in-memory view to the client
+            sendResponse();
+        }
+
+        private void sendResponse() {
             List<List<?>> list = new ArrayList<>(data.size());
             data.forEach(t -> list.add(t.v1()));
-
-            listener.onResponse(new PagingListRowSet(schema, list, pageSize));
+            listener.onResponse(new PagingListRowSet(schema, list, cfg.pageSize()));
         }
 
         @Override
