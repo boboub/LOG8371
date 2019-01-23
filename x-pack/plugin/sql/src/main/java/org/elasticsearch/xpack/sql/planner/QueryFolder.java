@@ -145,8 +145,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
 
-                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.columns(), aliases,
-                        queryC.pseudoFunctions(), processors, queryC.sort(), queryC.limit());
+                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.columns(), queryC.attributes(),
+                        aliases, queryC.pseudoFunctions(), processors, queryC.sort(), queryC.limit());
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
             return project;
@@ -169,7 +169,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
-                qContainer = new QueryContainer(query, aggs, qContainer.columns(), qContainer.aliases(),
+                qContainer = new QueryContainer(query, aggs, qContainer.columns(), qContainer.attributes(),
+                        qContainer.aliases(),
                         qContainer.pseudoFunctions(),
                         qContainer.scalarFunctions(),
                         qContainer.sort(),
@@ -314,7 +315,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
 
                             // add the computed column
-                            queryC = qC.get().addColumn(new ComputedRef(proc));
+                            queryC = qC.get().addColumn(new ComputedRef(proc), f.id());
 
                             // TODO: is this needed?
                             // redirect the alias to the scalar group id (changing the id altogether doesn't work it is
@@ -336,20 +337,20 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // UTC is used since that's what the server uses and there's no conversion applied
                                 // (like for date histograms)
                                 ZoneId zi = DataType.DATETIME == child.dataType() ? DateUtils.UTC : null;
-                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
+                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi), ((Attribute) child).id());
                             }
                             // handle histogram
                             else if (child instanceof GroupingFunction) {
-                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, null));
+                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, null), ((GroupingFunction) child).id());
                             }
                             // fallback to regular agg functions
                             else {
                                 // the only thing left is agg function
                                 Check.isTrue(Functions.isAggregate(child),
                                         "Expected aggregate function inside alias; got [{}]", child.nodeString());
-                                Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup,
-                                        (AggregateFunction) child, compoundAggMap, queryC);
-                                queryC = withAgg.v1().addColumn(withAgg.v2().context());
+                                AggregateFunction af = (AggregateFunction) child;
+                                Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup, af, compoundAggMap, queryC);
+                                queryC = withAgg.v1().addColumn(withAgg.v2().context(), af.id());
                             }
                         }
                     // not an Alias or Function means it's an Attribute so apply the same logic as above
@@ -360,7 +361,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
                             ZoneId zi = DataType.DATETIME == ne.dataType() ? DateUtils.UTC : null;
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi), ne.id());
                         }
                     }
                 }

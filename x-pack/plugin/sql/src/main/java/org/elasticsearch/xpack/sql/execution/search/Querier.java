@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,8 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.action.SqlQueryAction;
-import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractor;
@@ -35,6 +34,8 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
+import org.elasticsearch.xpack.sql.expression.ExpressionId;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -62,11 +62,10 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
-import static java.util.Collections.singletonList;
 // TODO: add retry/back-off
 public class Querier {
 
@@ -102,17 +101,8 @@ public class Querier {
 
         SearchRequest search = prepareRequest(client, sourceBuilder, timeout, Strings.commaDelimitedListToStringArray(index));
 
-        // custom sorting necessary
-        for (Sort sort : query.sort()) {
-            if (sort instanceof AttributeSort) {
-                AttributeSort as = (AttributeSort) sort;
-                if (as.attribute() instanceof AggregateFunctionAttribute) {
-                    throw new UnsupportedOperationException();
-                }
-            }
+        listener = addAggSorting(schema, query, listener);
 
-            listener = new LocalAggregationSorterListener(schema, listener);
-        }
         ActionListener<SearchResponse> l = null;
         
         if (query.isAggsOnly()) {
@@ -135,29 +125,92 @@ public class Querier {
         return search;
     }
 
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private ActionListener<SchemaRowSet> addAggSorting(Schema schema, QueryContainer query, ActionListener<SchemaRowSet> listener) {
+        List<ExpressionId> attributes = query.attributes();
+        List<Tuple<Integer, Comparator>> sortingColumns = new ArrayList<>(query.sort().size());
+
+        boolean aggSortingRequired = false;
+        
+        // custom sorting necessary
+        for (Sort sort : query.sort()) {
+            Tuple<Integer, Comparator> tuple = new Tuple<>(Integer.valueOf(-1), null);
+            
+            if (sort instanceof AttributeSort) {
+                AttributeSort as = (AttributeSort) sort;
+                if (as.attribute() instanceof AggregateFunctionAttribute) {
+                    aggSortingRequired = true;
+                    int atIndex = attributes.indexOf(as.attribute().id());
+                    
+                    if (atIndex == -1) {
+                        throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", Expressions.name(as.attribute()));
+                    }
+                    Comparator comp = sort.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
+                    comp = sort.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
+                    
+                    tuple = new Tuple<>(Integer.valueOf(atIndex), comp);
+                }
+            }
+            sortingColumns.add(tuple);
+        }
+
+        if (aggSortingRequired) {
+            listener = new LocalAggregationSorterListener(schema, listener, sortingColumns);
+        }
+        return listener;
+    }
+
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
      * 
      * This listener consumes the whole result set, sorts it in memory then send the paginates
      * the results back the user.
      */
+    @SuppressWarnings("rawtypes")
     class LocalAggregationSorterListener implements ActionListener<SchemaRowSet> {
 
         private final Schema schema;
         private final ActionListener<SchemaRowSet> listener;
+        private final List<Tuple<Integer, Comparator>> sortingColumns;
 
-        // this list acts an accumulator. it's only used by one thread at a time
+        // keep the top N entries.
+        // The queue is only used by one thread at a time
         // however different threads can access it during the listener life-cycle.
         // thus, it's not an issue with concurrency but rather visibility of the data
         // between the threads that take turns.
         //
         // this is handled through the synchronized block below - the read doesn't need
         // to be synchronized since there's no need for locking (there's no concurrency)
-        private final List<List<?>> data = new ArrayList<>();
+        private final PriorityQueue<Tuple<List<?>, Integer>> data = new PriorityQueue<Tuple<List<?>, Integer>>(100) {
 
-        LocalAggregationSorterListener(Schema schema, ActionListener<SchemaRowSet> listener) {
+            @Override
+            protected boolean lessThan(Tuple<List<?>, Integer> a, Tuple<List<?>, Integer> b) {
+                int i = tuple.v1().intValue();
+                Comparator comparator = tuple.v2();
+
+                Object vl = l.get(i);
+                Object vr = r.get(i);
+                if (comparator != null) {
+                    int result = comparator.compare(vl, vr);
+                    if (result != 0) {
+                        return result;
+                    }
+                } else {
+                    // check the values - if they are equal move to the next comparator
+                    // otherwise return the row order
+                    if ((vl == null && vr != null) || vl.equals(vr) == false) {
+                        return rowPosition.get(l).compareTo(rowPosition.get(r));
+                    }
+                }
+            }
+        };
+
+        LocalAggregationSorterListener(Schema schema, ActionListener<SchemaRowSet> listener,
+                List<Tuple<Integer, Comparator>> sortingColumns) {
             this.listener = listener;
             this.schema = schema;
+            this.sortingColumns = sortingColumns;
         }
 
         @Override
@@ -170,29 +223,67 @@ public class Querier {
                 response.forEachRow(r -> {
                     List<Object> row = new ArrayList<>(r.columnCount());
                     r.forEachColumn(row::add);
-                    data.add(row);
+                    data.add(new Tuple<>(row, data.size()));
                 });
             }
                 
             Cursor cursor = response.nextPageCursor();
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
-                // trigger a next call
-                // the planExecutor could be used directly however
-                // by going through the client properly increments the stats
-                new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
-                        .cursor(Cursors.encodeToString(Version.CURRENT, cursor))
-                        .fetchSize(cfg.pageSize())
-                        .mode(cfg.mode())
-                        .pageTimeout(cfg.pageTimeout())
-                        .requestTimeout(cfg.requestTimeout())
-                        .zoneId(cfg.zoneId())
-                        .execute();
-                // make sure to bail out afterwards as we'll get called by a different thread
-                return;
+                //                // trigger a next call
+                //                // the planExecutor could be used directly however
+                //                // by going through the client properly increments the stats
+                //                new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
+                //                        .cursor(Cursors.encodeToString(Version.CURRENT, cursor))
+                //                        .fetchSize(cfg.pageSize())
+                //                        .mode(cfg.mode())
+                //                        .pageTimeout(cfg.pageTimeout())
+                //                        .requestTimeout(cfg.requestTimeout())
+                //                        .zoneId(cfg.zoneId())
+                //                        .execute();
+                //                // make sure to bail out afterwards as we'll get called by a different thread
+                //                return;
             }
+
             // no more data available, the last thread sends the response
             // 2. sort it locally
+
+            // compare row based on the received attribute sort
+            // if a sort item is not in the list, it is assumed the sorting happened in ES
+            // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
+            //
+            // Take for example ORDER BY a, x, b, y
+            // a, b - are sorted in ES
+            // x, y - need to be sorted client-side
+            // sorting on x kicks in, only if the values for a are equal.
+
+            // thanks to @jpountz for the row ordering to keep things in place
+            @SuppressWarnings("unchecked")
+            Comparator<List<?>> rowComparator = (l, r) -> {
+                for (Tuple<Integer, Comparator> tuple : sortingColumns) {
+                    int i = tuple.v1().intValue();
+                    Comparator comparator = tuple.v2();
+
+                    Object vl = l.get(i);
+                    Object vr = r.get(i);
+                    if (comparator != null) {
+                        int result = comparator.compare(vl, vr);
+                        if (result != 0) {
+                            return result;
+                        }
+                    } else {
+                        // check the values - if they are equal move to the next comparator
+                        // otherwise return the row order
+                        if ((vl == null && vr != null) || vl.equals(vr) == false) {
+                            return rowPosition.get(l).compareTo(rowPosition.get(r));
+                        }
+                    }
+                }
+
+                return 0;
+            };
+
+            data.sort(rowComparator);
 
             // 3. send the in-memory view to the client
             listener.onResponse(new PagingListRowSet(schema, data, pageSize));

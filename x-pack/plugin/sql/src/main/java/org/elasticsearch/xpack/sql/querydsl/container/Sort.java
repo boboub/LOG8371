@@ -9,8 +9,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 
-import java.util.Comparator;
-
 public abstract class Sort {
 
     public enum Direction {
@@ -57,9 +55,5 @@ public abstract class Sort {
 
     public Missing missing() {
         return missing;
-    }
-
-    public Comparator<?> comparator() {
-        return null;
     }
 }
