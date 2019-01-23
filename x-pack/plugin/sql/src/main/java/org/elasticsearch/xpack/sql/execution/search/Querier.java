@@ -66,6 +66,8 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import static java.util.Collections.singletonList;
 // TODO: add retry/back-off
 public class Querier {
 
@@ -184,25 +186,40 @@ public class Querier {
         // to be synchronized since there's no need for locking (there's no concurrency)
         private final PriorityQueue<Tuple<List<?>, Integer>> data = new PriorityQueue<Tuple<List<?>, Integer>>(100) {
 
-            @Override
-            protected boolean lessThan(Tuple<List<?>, Integer> a, Tuple<List<?>, Integer> b) {
-                int i = tuple.v1().intValue();
-                Comparator comparator = tuple.v2();
+            // compare row based on the received attribute sort
+            // if a sort item is not in the list, it is assumed the sorting happened in ES
+            // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
+            //
+            // Take for example ORDER BY a, x, b, y
+            // a, b - are sorted in ES
+            // x, y - need to be sorted client-side
+            // sorting on x kicks in, only if the values for a are equal.
 
-                Object vl = l.get(i);
-                Object vr = r.get(i);
-                if (comparator != null) {
-                    int result = comparator.compare(vl, vr);
-                    if (result != 0) {
-                        return result;
-                    }
-                } else {
-                    // check the values - if they are equal move to the next comparator
-                    // otherwise return the row order
-                    if ((vl == null && vr != null) || vl.equals(vr) == false) {
-                        return rowPosition.get(l).compareTo(rowPosition.get(r));
+            // thanks to @jpountz for the row ordering to keep things in place
+            @SuppressWarnings("unchecked")
+            @Override
+            protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
+                for (Tuple<Integer, Comparator> tuple : sortingColumns) {
+                    int i = tuple.v1().intValue();
+                    Comparator comparator = tuple.v2();
+
+                    Object vl = l.v1().get(i);
+                    Object vr = r.v1().get(i);
+                    if (comparator != null) {
+                        int result = comparator.compare(vl, vr);
+                        if (result != 0) {
+                            return result < 0;
+                        }
+                    } else {
+                        // check the values - if they are equal move to the next comparator
+                        // otherwise return the row order
+                        if ((vl == null && vr != null) || vl.equals(vr) == false) {
+                            return l.v2().compareTo(r.v2()) > 0;
+                        }
                     }
                 }
+                // everything is equal, fall-back to the row order
+                return l.v2().compareTo(r.v2()) > 0;
             }
         };
 
@@ -246,47 +263,12 @@ public class Querier {
             }
 
             // no more data available, the last thread sends the response
-            // 2. sort it locally
 
-            // compare row based on the received attribute sort
-            // if a sort item is not in the list, it is assumed the sorting happened in ES
-            // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
-            //
-            // Take for example ORDER BY a, x, b, y
-            // a, b - are sorted in ES
-            // x, y - need to be sorted client-side
-            // sorting on x kicks in, only if the values for a are equal.
+            // 2. send the in-memory view to the client
+            List<List<?>> list = new ArrayList<>(data.size());
+            data.forEach(t -> list.add(t.v1()));
 
-            // thanks to @jpountz for the row ordering to keep things in place
-            @SuppressWarnings("unchecked")
-            Comparator<List<?>> rowComparator = (l, r) -> {
-                for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-                    int i = tuple.v1().intValue();
-                    Comparator comparator = tuple.v2();
-
-                    Object vl = l.get(i);
-                    Object vr = r.get(i);
-                    if (comparator != null) {
-                        int result = comparator.compare(vl, vr);
-                        if (result != 0) {
-                            return result;
-                        }
-                    } else {
-                        // check the values - if they are equal move to the next comparator
-                        // otherwise return the row order
-                        if ((vl == null && vr != null) || vl.equals(vr) == false) {
-                            return rowPosition.get(l).compareTo(rowPosition.get(r));
-                        }
-                    }
-                }
-
-                return 0;
-            };
-
-            data.sort(rowComparator);
-
-            // 3. send the in-memory view to the client
-            listener.onResponse(new PagingListRowSet(schema, data, pageSize));
+            listener.onResponse(new PagingListRowSet(schema, list, pageSize));
         }
 
         @Override
