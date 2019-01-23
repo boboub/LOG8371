@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -68,7 +69,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -196,68 +196,68 @@ public class Querier {
             //
             // this is handled through the synchronized block below - the read doesn't need
             // to be synchronized since there's no need for locking (there's no concurrency)
-            this.data = new PriorityQueue<>((l, r) -> {
-              for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-                  int i = tuple.v1().intValue();
-                  Comparator comparator = tuple.v2();
+            //            this.data = new PriorityQueue<>((l, r) -> {
+            //              for (Tuple<Integer, Comparator> tuple : sortingColumns) {
+            //                  int i = tuple.v1().intValue();
+            //                  Comparator comparator = tuple.v2();
+            //
+            //                  Object vl = l.v1().get(i);
+            //                  Object vr = r.v1().get(i);
+            //                  if (comparator != null) {
+            //                      int result = comparator.compare(vl, vr);
+            //                      if (result != 0) {
+            //                            return result;
+            //                      }
+            //                  } else {
+            //                      // check the values - if they are equal move to the next comparator
+            //                      // otherwise return the row order
+            //                      if ((vl == null && vr != null) || vl.equals(vr) == false) {
+            //                            return l.v2().compareTo(r.v2());
+            //                      }
+            //                  }
+            //              }
+            //              // everything is equal, fall-back to the row order
+            //                return l.v2().compareTo(r.v2());
+            //            });
 
-                  Object vl = l.v1().get(i);
-                  Object vr = r.v1().get(i);
-                  if (comparator != null) {
-                      int result = comparator.compare(vl, vr);
-                      if (result != 0) {
-                            return result;
-                      }
-                  } else {
-                      // check the values - if they are equal move to the next comparator
-                      // otherwise return the row order
-                      if ((vl == null && vr != null) || vl.equals(vr) == false) {
-                            return l.v2().compareTo(r.v2());
-                      }
-                  }
-              }
-              // everything is equal, fall-back to the row order
-                return l.v2().compareTo(r.v2());
-            });
-            
-//            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(Math.max(limit, 100)) {
-//
-//                // compare row based on the received attribute sort
-//                // if a sort item is not in the list, it is assumed the sorting happened in ES
-//                // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
-//                //
-//                // Take for example ORDER BY a, x, b, y
-//                // a, b - are sorted in ES
-//                // x, y - need to be sorted client-side
-//                // sorting on x kicks in, only if the values for a are equal.
-//
-//                // thanks to @jpountz for the row ordering to keep things in place
-//                @SuppressWarnings("unchecked")
-//                @Override
-//                protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
-//                    for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-//                        int i = tuple.v1().intValue();
-//                        Comparator comparator = tuple.v2();
-//
-//                        Object vl = l.v1().get(i);
-//                        Object vr = r.v1().get(i);
-//                        if (comparator != null) {
-//                            int result = comparator.compare(vl, vr);
-//                            if (result != 0) {
-//                                return result < 0;
-//                            }
-//                        } else {
-//                            // check the values - if they are equal move to the next comparator
-//                            // otherwise return the row order
-//                            if ((vl == null && vr != null) || vl.equals(vr) == false) {
-//                                return l.v2().compareTo(r.v2()) < 0;
-//                            }
-//                        }
-//                    }
-//                    // everything is equal, fall-back to the row order
-//                    return l.v2().compareTo(r.v2()) < 0;
-//                }
-//            };
+            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(Math.max(limit, 100)) {
+
+                // compare row based on the received attribute sort
+                // if a sort item is not in the list, it is assumed the sorting happened in ES
+                // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
+                //
+                // Take for example ORDER BY a, x, b, y
+                // a, b - are sorted in ES
+                // x, y - need to be sorted client-side
+                // sorting on x kicks in, only if the values for a are equal.
+
+                // thanks to @jpountz for the row ordering to keep things in place
+                @SuppressWarnings("unchecked")
+                @Override
+                protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
+                    for (Tuple<Integer, Comparator> tuple : sortingColumns) {
+                        int i = tuple.v1().intValue();
+                        Comparator comparator = tuple.v2();
+
+                        Object vl = l.v1().get(i);
+                        Object vr = r.v1().get(i);
+                        if (comparator != null) {
+                            int result = comparator.compare(vl, vr);
+                            if (result != 0) {
+                                return result < 0;
+                            }
+                        } else {
+                            // check the values - if they are equal move to the next comparator
+                            // otherwise return the row order
+                            if ((vl == null && vr != null) || vl.equals(vr) == false) {
+                                return l.v2().compareTo(r.v2()) < 0;
+                            }
+                        }
+                    }
+                    // everything is equal, fall-back to the row order
+                    return l.v2().compareTo(r.v2()) < 0;
+                }
+            };
         }
 
         @Override
@@ -268,7 +268,7 @@ public class Querier {
                 response.forEachRow(r -> {
                     List<Object> row = new ArrayList<>(r.columnCount());
                     r.forEach(row::add);
-                    data.add(new Tuple<>(row, counter.getAndIncrement()));
+                    data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement()));
                 });
             }
                 
@@ -287,7 +287,7 @@ public class Querier {
                         .zoneId(cfg.zoneId())
                         .execute(ActionListener.wrap(r -> {
                             synchronized (data) {
-                                r.rows().forEach(l -> data.add(new Tuple<>(l, counter.getAndIncrement())));
+                                r.rows().forEach(l -> data.insertWithOverflow(new Tuple<>(l, counter.getAndIncrement())));
                             }
                             sendResponse();
                         }, this::onFailure));
@@ -302,9 +302,9 @@ public class Querier {
 
         private void sendResponse() {
             List<List<?>> list = new ArrayList<>(data.size());
-            Tuple<List<?>, Integer> poll = null;
-            while ((poll = data.poll()) != null) {
-                list.add(poll.v1());
+            Tuple<List<?>, Integer> pop = null;
+            while ((pop = data.pop()) != null) {
+                list.add(pop.v1());
             }
             listener.onResponse(new PagingListRowSet(schema, list, cfg.pageSize()));
         }
