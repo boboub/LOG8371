@@ -10,7 +10,6 @@ import com.google.common.base.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,8 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.action.SqlQueryAction;
-import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
+import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractor;
@@ -58,7 +56,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.Cursors;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -79,6 +77,7 @@ public class Querier {
 
     private final Logger log = LogManager.getLogger(getClass());
 
+    private final PlanExecutor planExecutor;
     private final Configuration cfg;
     private final TimeValue keepAlive, timeout;
     private final int size;
@@ -87,6 +86,7 @@ public class Querier {
     private final QueryBuilder filter;
 
     public Querier(SqlSession sqlSession) {
+        this.planExecutor = sqlSession.planExecutor();
         this.client = sqlSession.client();
         this.cfg = sqlSession.configuration();
         this.keepAlive = cfg.requestTimeout();
@@ -243,37 +243,18 @@ public class Querier {
         }
 
         @Override
-        public void onResponse(SchemaRowSet response) {
-            ResultRowSet<?> rrs = (ResultRowSet<?>) response;
+        public void onResponse(SchemaRowSet rowSet) {
+            doResponse(rowSet);
+        }
+
+        private void doResponse(RowSet rowSet) {
             // 1. consume all pages received
-            // use a synchronized block for visibility purposes (there's no concurrency)
-            synchronized (data) {
-                rrs.forEachRow(r -> {
-                    List<Object> row = new ArrayList<>(rrs.columnCount());
-                    rrs.forEachResultColumn(row::add);
-                    data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement()));
-                });
-            }
-                
-            Cursor cursor = rrs.nextPageCursor();
+            consumeRowSet(rowSet);
+            Cursor cursor = rowSet.nextPageCursor();
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
                 // trigger a next call
-                // the planExecutor could be used directly however
-                // by going through the client properly increments the stats
-                new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
-                        .cursor(Cursors.encodeToString(Version.CURRENT, cursor))
-                        .fetchSize(cfg.pageSize())
-                        .mode(cfg.mode())
-                        .pageTimeout(cfg.pageTimeout())
-                        .requestTimeout(cfg.requestTimeout())
-                        .zoneId(cfg.zoneId())
-                        .execute(ActionListener.wrap(r -> {
-                            synchronized (data) {
-                                r.rows().forEach(l -> data.insertWithOverflow(new Tuple<>(l, counter.getAndIncrement())));
-                            }
-                            sendResponse();
-                        }, this::onFailure));
+                planExecutor.nextPage(cfg, cursor, ActionListener.wrap(this::doResponse, this::onFailure));
                 // make sure to bail out afterwards as we'll get called by a different thread
                 return;
             }
@@ -281,6 +262,18 @@ public class Querier {
             // no more data available, the last thread sends the response
             // 2. send the in-memory view to the client
             sendResponse();
+        }
+
+        private void consumeRowSet(RowSet rowSet) {
+            // use a synchronized block for visibility purposes (there's no concurrency)
+            ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
+            synchronized (data) {
+                rrs.forEachRow(r -> {
+                    List<Object> row = new ArrayList<>(rrs.columnCount());
+                    rrs.forEachResultColumn(row::add);
+                    data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement()));
+                });
+            }
         }
 
         private void sendResponse() {
