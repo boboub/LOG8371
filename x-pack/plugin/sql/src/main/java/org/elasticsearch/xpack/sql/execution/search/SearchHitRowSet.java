@@ -9,7 +9,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.sql.session.AbstractRowSet;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.Arrays;
@@ -20,10 +19,9 @@ import java.util.Set;
 /**
  * Extracts rows from an array of {@link SearchHit}.
  */
-class SearchHitRowSet extends AbstractRowSet {
+class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     private final SearchHit[] hits;
     private final Cursor cursor;
-    private final List<HitExtractor> extractors;
     private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
 
@@ -31,10 +29,10 @@ class SearchHitRowSet extends AbstractRowSet {
     private final int[] indexPerLevel;
     private int row = 0;
 
-    SearchHitRowSet(List<HitExtractor> exts, SearchHit[] hits, int limit, String scrollId) {
+    SearchHitRowSet(List<HitExtractor> exts, int[] columns, SearchHit[] hits, int limit, String scrollId) {
+        super(exts, columns);
 
         this.hits = hits;
-        this.extractors = exts;
 
          // Since the results might contain nested docs, the iteration is similar to that of Aggregation
          // namely it discovers the nested docs and then, for iteration, increments the deepest level first
@@ -85,7 +83,7 @@ class SearchHitRowSet extends AbstractRowSet {
             if (size == 0 || remainingLimit == 0) {
                 cursor = Cursor.EMPTY;
             } else {
-                cursor = new ScrollCursor(scrollId, extractors, remainingLimit);
+                cursor = new ScrollCursor(scrollId, extractors(), columns, remainingLimit);
             }
         }
     }
@@ -95,13 +93,7 @@ class SearchHitRowSet extends AbstractRowSet {
     }
 
     @Override
-    public int columnCount() {
-        return extractors.size();
-    }
-
-    @Override
-    protected Object getColumn(int column) {
-        HitExtractor e = extractors.get(column);
+    protected Object extractValue(HitExtractor e) {
         int extractorLevel = e.hitName() == null ? 0 : 1;
 
         SearchHit hit = null;

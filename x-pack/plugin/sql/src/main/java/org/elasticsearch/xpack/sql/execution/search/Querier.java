@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import com.google.common.base.Objects;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
@@ -38,7 +40,6 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
@@ -94,7 +95,7 @@ public class Querier {
         this.size = cfg.pageSize();
     }
 
-    public void query(Schema schema, QueryContainer query, String index, ActionListener<SchemaRowSet> listener) {
+    public void query(Schema schema, QueryContainer query, int[] cols, String index, ActionListener<SchemaRowSet> listener) {
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, filter, size);
         // set query timeout
@@ -114,13 +115,13 @@ public class Querier {
         
         if (query.isAggsOnly()) {
             if (query.aggs().useImplicitGroupBy()) {
-                l = new ImplicitGroupActionListener(listener, client, timeout, schema, query, search);
+                l = new ImplicitGroupActionListener(listener, client, timeout, schema, query, cols, search);
             } else {
-                l = new CompositeActionListener(listener, client, timeout, schema, query, search);
+                l = new CompositeActionListener(listener, client, timeout, schema, query, cols, search);
             }
         } else {
             search.scroll(keepAlive);
-            l = new ScrollActionListener(listener, client, timeout, schema, query);
+            l = new ScrollActionListener(listener, client, timeout, schema, cols, query);
         }
 
         client.search(search, l);
@@ -135,7 +136,7 @@ public class Querier {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private ActionListener<SchemaRowSet> addAggSorting(Schema schema, QueryContainer query, ActionListener<SchemaRowSet> listener) {
-        List<ExpressionId> attributes = query.attributes();
+        List<Tuple<FieldExtraction, ExpressionId>> fields = query.fields();
         List<Tuple<Integer, Comparator>> sortingColumns = new ArrayList<>(query.sort().size());
 
         boolean aggSortingRequired = false;
@@ -147,12 +148,21 @@ public class Querier {
             if (sort instanceof AttributeSort) {
                 AttributeSort as = (AttributeSort) sort;
                 if (as.attribute() instanceof AggregateFunctionAttribute) {
+                    AggregateFunctionAttribute afa = (AggregateFunctionAttribute) as.attribute();
                     aggSortingRequired = true;
-                    int atIndex = attributes.indexOf(as.attribute().id());
+                    int atIndex = -1;
+                    for (int i = 0; i < fields.size(); i++) {
+                        Tuple<FieldExtraction, ExpressionId> field = fields.get(i);
+                        if (field.v2().equals(afa.innerId())) {
+                            atIndex = i;
+                            break;
+                        }
+                    }
                     
                     if (atIndex == -1) {
-                        throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", Expressions.name(as.attribute()));
+                        throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", afa.name());
                     }
+
                     Comparator comp = sort.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
                     comp = sort.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
                     
@@ -189,37 +199,6 @@ public class Querier {
             this.listener = listener;
             this.schema = schema;
 
-            // The queue is only used by one thread at a time
-            // however different threads can access it during the listener life-cycle.
-            // thus, it's not an issue with concurrency but rather visibility of the data
-            // between the threads that take turns.
-            //
-            // this is handled through the synchronized block below - the read doesn't need
-            // to be synchronized since there's no need for locking (there's no concurrency)
-            //            this.data = new PriorityQueue<>((l, r) -> {
-            //              for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-            //                  int i = tuple.v1().intValue();
-            //                  Comparator comparator = tuple.v2();
-            //
-            //                  Object vl = l.v1().get(i);
-            //                  Object vr = r.v1().get(i);
-            //                  if (comparator != null) {
-            //                      int result = comparator.compare(vl, vr);
-            //                      if (result != 0) {
-            //                            return result;
-            //                      }
-            //                  } else {
-            //                      // check the values - if they are equal move to the next comparator
-            //                      // otherwise return the row order
-            //                      if ((vl == null && vr != null) || vl.equals(vr) == false) {
-            //                            return l.v2().compareTo(r.v2());
-            //                      }
-            //                  }
-            //              }
-            //              // everything is equal, fall-back to the row order
-            //                return l.v2().compareTo(r.v2());
-            //            });
-
             this.data = new PriorityQueue<Tuple<List<?>, Integer>>(Math.max(limit, 100)) {
 
                 // compare row based on the received attribute sort
@@ -231,7 +210,7 @@ public class Querier {
                 // x, y - need to be sorted client-side
                 // sorting on x kicks in, only if the values for a are equal.
 
-                // thanks to @jpountz for the row ordering to keep things in place
+                // thanks to @jpountz for the row ordering idea as a way to preserve ordering
                 @SuppressWarnings("unchecked")
                 @Override
                 protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
@@ -243,13 +222,16 @@ public class Querier {
                         Object vr = r.v1().get(i);
                         if (comparator != null) {
                             int result = comparator.compare(vl, vr);
+                            // if things are equals, move to the next comparator
                             if (result != 0) {
                                 return result < 0;
                             }
-                        } else {
+                        }
+                        // no comparator means the existing order needs to be preserved
+                        else {
                             // check the values - if they are equal move to the next comparator
                             // otherwise return the row order
-                            if ((vl == null && vr != null) || vl.equals(vr) == false) {
+                            if (Objects.equal(vl, vr) == false) {
                                 return l.v2().compareTo(r.v2()) < 0;
                             }
                         }
@@ -262,17 +244,18 @@ public class Querier {
 
         @Override
         public void onResponse(SchemaRowSet response) {
+            ResultRowSet<?> rrs = (ResultRowSet<?>) response;
             // 1. consume all pages received
             // use a synchronized block for visibility purposes (there's no concurrency)
             synchronized (data) {
-                response.forEachRow(r -> {
-                    List<Object> row = new ArrayList<>(r.columnCount());
-                    r.forEach(row::add);
+                rrs.forEachRow(r -> {
+                    List<Object> row = new ArrayList<>(rrs.columnCount());
+                    rrs.forEachResultColumn(row::add);
                     data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement()));
                 });
             }
                 
-            Cursor cursor = response.nextPageCursor();
+            Cursor cursor = rrs.nextPageCursor();
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
                 // trigger a next call
@@ -349,8 +332,8 @@ public class Querier {
         });
 
         ImplicitGroupActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, Schema schema,
-                QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, schema, query, request);
+                QueryContainer query, int[] columns, SearchRequest request) {
+            super(listener, client, keepAlive, schema, query, columns, request);
         }
 
         @Override
@@ -397,8 +380,8 @@ public class Querier {
     static class CompositeActionListener extends BaseAggActionListener {
 
         CompositeActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
-                Schema schema, QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, schema, query, request);
+                Schema schema, QueryContainer query, int[] columns, SearchRequest request) {
+            super(listener, client, keepAlive, schema, query, columns, request);
         }
 
 
@@ -424,7 +407,7 @@ public class Querier {
                 }
 
                 listener.onResponse(
-                        new SchemaCompositeAggsRowSet(schema, initBucketExtractors(response), response, query.limit(),
+                        new SchemaCompositeAggsRowSet(schema, initBucketExtractors(response), columns, response, query.limit(),
                                 nextSearch,
                                 request.indices()));
             }
@@ -438,23 +421,25 @@ public class Querier {
     abstract static class BaseAggActionListener extends BaseActionListener {
         final QueryContainer query;
         final SearchRequest request;
+        final int[] columns;
 
         BaseAggActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, Schema schema,
-                QueryContainer query, SearchRequest request) {
+                QueryContainer query, int[] columns, SearchRequest request) {
             super(listener, client, keepAlive, schema);
 
             this.query = query;
             this.request = request;
+            this.columns = columns;
         }
 
         protected List<BucketExtractor> initBucketExtractors(SearchResponse response) {
             // create response extractors for the first time
-            List<FieldExtraction> refs = query.columns();
+            List<Tuple<FieldExtraction, ExpressionId>> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
-            for (FieldExtraction ref : refs) {
-                exts.add(createExtractor(ref, totalCount));
+            for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
+                exts.add(createExtractor(ref.v1(), totalCount));
             }
             return exts;
         }
@@ -495,11 +480,13 @@ public class Querier {
      */
     static class ScrollActionListener extends BaseActionListener {
         private final QueryContainer query;
+        private final int[] columns;
 
         ScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
-                Schema schema, QueryContainer query) {
+                Schema schema, int[] columns, QueryContainer query) {
             super(listener, client, keepAlive, schema);
             this.query = query;
+            this.columns = columns;
         }
 
         @Override
@@ -507,17 +494,17 @@ public class Querier {
             SearchHit[] hits = response.getHits().getHits();
 
             // create response extractors for the first time
-            List<FieldExtraction> refs = query.columns();
+            List<Tuple<FieldExtraction, ExpressionId>> refs = query.fields();
 
             List<HitExtractor> exts = new ArrayList<>(refs.size());
-            for (FieldExtraction ref : refs) {
-                exts.add(createExtractor(ref));
+            for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
+                exts.add(createExtractor(ref.v1()));
             }
 
             // there are some results
             if (hits.length > 0) {
                 String scrollId = response.getScrollId();
-                SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
+                SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, columns, hits, query.limit(), scrollId);
                 
                 // if there's an id, try to setup next scroll
                 if (scrollId != null &&
@@ -527,7 +514,7 @@ public class Querier {
                                 || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll
                     clear(response.getScrollId(), ActionListener.wrap(
-                            succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
+                            succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, columns, hits, query.limit(), null)),
                             listener::onFailure));
                 } else {
                     listener.onResponse(hitRowSet);

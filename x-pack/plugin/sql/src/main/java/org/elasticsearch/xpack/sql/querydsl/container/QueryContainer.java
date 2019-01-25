@@ -50,16 +50,25 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
+/**
+ * Container for various references of the built ES query.
+ * Useful to understanding how to interpret and navigate the
+ * returned result.
+ */
 public class QueryContainer {
 
     private final Aggs aggs;
     private final Query query;
 
-    // final output seen by the client (hence the list or ordering)
-    // gets converted by the Scroller into Extractors for hits or actual results in case of aggregations
-    private final List<FieldExtraction> columns;
-    // attributes associated with each column - used by custom sorting
-    private final List<ExpressionId> attributes;
+    // fields extracted from the response - not necessarily what the client sees
+    // for example in case of grouping or custom sorting, the response has extra columns
+    // that is filtered before getting to the client
+
+    // the list contains both the field extraction and the id of its associated attribute (for custom sorting)
+    private final List<Tuple<FieldExtraction, ExpressionId>> fields;
+
+    // the list of extractors that are returns as columns to the user
+    private final List<ExpressionId> columns;
 
     // aliases (maps an alias to its actual resolved attribute)
     private final Map<Attribute, Attribute> aliases;
@@ -81,21 +90,34 @@ public class QueryContainer {
         this(null, null, null, null, null, null, null, null, -1);
     }
 
-    public QueryContainer(Query query, Aggs aggs, List<FieldExtraction> refs, List<ExpressionId> attributes,
+    public QueryContainer(Query query,
+            Aggs aggs,
+            List<Tuple<FieldExtraction, ExpressionId>> fields,
+            List<ExpressionId> columns,
             Map<Attribute, Attribute> aliases,
             Map<String, GroupByKey> pseudoFunctions,
             Map<Attribute, Pipe> scalarFunctions,
-            Set<Sort> sort, int limit) {
+            Set<Sort> sort,
+            int limit) {
         this.query = query;
-        this.aggs = aggs == null ? new Aggs() : aggs;
+        this.aggs = aggs == null ? Aggs.EMPTY : aggs;
+        this.fields = fields == null || fields.isEmpty() ? emptyList() : fields;
+        this.columns = columns == null || columns.isEmpty() ? emptyList() : columns;
         this.aliases = aliases == null || aliases.isEmpty() ? emptyMap() : aliases;
         this.pseudoFunctions = pseudoFunctions == null || pseudoFunctions.isEmpty() ? emptyMap() : pseudoFunctions;
         this.scalarFunctions = scalarFunctions == null || scalarFunctions.isEmpty() ? emptyMap() : scalarFunctions;
-        this.columns = refs == null || refs.isEmpty() ? emptyList() : refs;
-        this.attributes = attributes == null || attributes.isEmpty() ? emptyList() : attributes;
         this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
         this.limit = limit;
-        aggsOnly = columns.stream().allMatch(FieldExtraction::supportedByAggsOnlyQuery);
+
+        aggsOnly = this.fields.stream().allMatch(t -> t.v1().supportedByAggsOnlyQuery());
+    }
+
+    public static List<ExpressionId> ids(List<Attribute> attributes) {
+        List<ExpressionId> ids = new ArrayList<>(attributes.size());
+        for (Attribute attr : attributes) {
+            ids.add(attr.id());
+        }
+        return ids;
     }
 
     public Query query() {
@@ -106,12 +128,12 @@ public class QueryContainer {
         return aggs;
     }
 
-    public List<FieldExtraction> columns() {
-        return columns;
+    public List<Tuple<FieldExtraction, ExpressionId>> fields() {
+        return fields;
     }
 
-    public List<ExpressionId> attributes() {
-        return attributes;
+    public List<ExpressionId> columns() {
+        return columns;
     }
 
     public Map<Attribute, Attribute> aliases() {
@@ -143,33 +165,33 @@ public class QueryContainer {
     //
 
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, aggs, columns, attributes, aliases, pseudoFunctions, scalarFunctions, sort, limit);
+        return new QueryContainer(q, aggs, fields, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit);
     }
 
     public QueryContainer withAliases(Map<Attribute, Attribute> a) {
-        return new QueryContainer(query, aggs, columns, attributes, a, pseudoFunctions, scalarFunctions, sort, limit);
+        return new QueryContainer(query, aggs, fields, columns, a, pseudoFunctions, scalarFunctions, sort, limit);
     }
 
     public QueryContainer withPseudoFunctions(Map<String, GroupByKey> p) {
-        return new QueryContainer(query, aggs, columns, attributes, aliases, p, scalarFunctions, sort, limit);
+        return new QueryContainer(query, aggs, fields, columns, aliases, p, scalarFunctions, sort, limit);
     }
 
     public QueryContainer with(Aggs a) {
-        return new QueryContainer(query, a, columns, attributes, aliases, pseudoFunctions, scalarFunctions, sort, limit);
+        return new QueryContainer(query, a, fields, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit);
     }
 
     public QueryContainer withLimit(int l) {
-        return l == limit ? this : new QueryContainer(query, aggs, columns, attributes, aliases, pseudoFunctions, scalarFunctions, sort, l);
+        return l == limit ? this : new QueryContainer(query, aggs, fields, columns, aliases, pseudoFunctions, scalarFunctions, sort, l);
     }
 
     public QueryContainer withScalarProcessors(Map<Attribute, Pipe> procs) {
-        return new QueryContainer(query, aggs, columns, attributes, aliases, pseudoFunctions, procs, sort, limit);
+        return new QueryContainer(query, aggs, fields, columns, aliases, pseudoFunctions, procs, sort, limit);
     }
 
-    public QueryContainer sort(Sort sortable) {
+    public QueryContainer addSort(Sort sortable) {
         Set<Sort> sort = new LinkedHashSet<>(this.sort);
         sort.add(sortable);
-        return new QueryContainer(query, aggs, columns, attributes, aliases, pseudoFunctions, scalarFunctions, sort, limit);
+        return new QueryContainer(query, aggs, fields, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit);
     }
 
     private String aliasName(Attribute attr) {
@@ -196,7 +218,7 @@ public class QueryContainer {
                 attr.field().isAggregatable(), attr.parent().name());
         nestedRefs.add(nestedFieldRef);
 
-        return new Tuple<>(new QueryContainer(q, aggs, columns, attributes, aliases, pseudoFunctions, scalarFunctions, sort, limit),
+        return new Tuple<>(new QueryContainer(q, aggs, fields, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit),
                 nestedFieldRef);
     }
 
@@ -296,7 +318,8 @@ public class QueryContainer {
     }
 
     public QueryContainer addColumn(FieldExtraction ref, ExpressionId id) {
-        return new QueryContainer(query, aggs, combine(columns, ref), combine(attributes, id), aliases, pseudoFunctions, scalarFunctions,
+        return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, id)), combine(columns, id), aliases, pseudoFunctions,
+                scalarFunctions,
                 sort, limit);
     }
 
@@ -312,7 +335,9 @@ public class QueryContainer {
         FieldExtraction ref = group == null ? GlobalCountRef.INSTANCE : new GroupByRef(group.id(), Property.COUNT, null);
         Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(this.pseudoFunctions);
         pseudoFunctions.put(functionId.toString(), group);
-        return new QueryContainer(query, aggs, combine(columns, ref), combine(attributes, functionId), aliases, pseudoFunctions,
+        return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, functionId)), combine(columns, functionId),
+                aliases,
+                pseudoFunctions,
                 scalarFunctions, sort, limit);
     }
 

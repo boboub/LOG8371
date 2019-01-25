@@ -34,11 +34,13 @@ public class ScrollCursor implements Cursor {
 
     private final String scrollId;
     private final List<HitExtractor> extractors;
+    private final int[] columns;
     private final int limit;
 
-    public ScrollCursor(String scrollId, List<HitExtractor> extractors, int limit) {
+    public ScrollCursor(String scrollId, List<HitExtractor> extractors, int[] columns, int limit) {
         this.scrollId = scrollId;
         this.extractors = extractors;
+        this.columns = columns;
         this.limit = limit;
     }
 
@@ -47,6 +49,7 @@ public class ScrollCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(HitExtractor.class);
+        columns = in.readIntArray();
     }
 
     @Override
@@ -55,6 +58,7 @@ public class ScrollCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
+        out.writeIntArray(columns);
     }
 
     @Override
@@ -79,7 +83,7 @@ public class ScrollCursor implements Cursor {
 
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(cfg.pageTimeout());
         client.searchScroll(request, ActionListener.wrap((SearchResponse response) -> {
-            SearchHitRowSet rowSet = new SearchHitRowSet(extractors, response.getHits().getHits(),
+            SearchHitRowSet rowSet = new SearchHitRowSet(extractors, columns, response.getHits().getHits(),
                     limit, response.getScrollId());
             if (rowSet.nextPageCursor() == Cursor.EMPTY ) {
                 // we are finished with this cursor, let's clean it before continuing

@@ -3,7 +3,7 @@
 //
 
 debug
-SELECT gender, AVG(salary) AS a FROM test_emp GROUP BY gender HAVING a > 1 ORDER BY a DESC;
+SELECT gender, AVG(salary) AS a FROM test_emp GROUP BY gender HAVING a > 1 ORDER BY MAX(salary) ASC;
 
        name        |     type      
 test_alias         |ALIAS          

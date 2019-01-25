@@ -145,7 +145,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
 
-                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.columns(), queryC.attributes(),
+                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
+                        QueryContainer.ids(project.output()),
                         aliases, queryC.pseudoFunctions(), processors, queryC.sort(), queryC.limit());
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
@@ -169,7 +170,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
-                qContainer = new QueryContainer(query, aggs, qContainer.columns(), qContainer.attributes(),
+                qContainer = new QueryContainer(query, aggs, qContainer.fields(), qContainer.columns(),
                         qContainer.aliases(),
                         qContainer.pseudoFunctions(),
                         qContainer.scalarFunctions(),
@@ -420,7 +421,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // FIXME: concern leak - hack around MatrixAgg which is not
                 // generalized (afaik)
                 aggInput = new AggPathInput(f,
-                        new MetricAggRef(cAggPath, ia.innerId(), ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null));
+                        new MetricAggRef(cAggPath, ia.innerName(), ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null));
             }
             else {
                 LeafAgg leafAgg = toAgg(functionId, f);
@@ -470,19 +471,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (sfa.orderBy() instanceof NamedExpression) {
                                     Attribute at = ((NamedExpression) sfa.orderBy()).toAttribute();
                                     at = qContainer.aliases().getOrDefault(at, at);
-                                    qContainer = qContainer.sort(new AttributeSort(at, direction, missing));
+                                    qContainer = qContainer.addSort(new AttributeSort(at, direction, missing));
                                 } else if (!sfa.orderBy().foldable()) {
                                     // ignore constant
                                     throw new PlanningException("does not know how to order by expression {}", sfa.orderBy());
                                 }
                             } else {
                                 // nope, use scripted sorting
-                                qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction, missing));
+                                qContainer = qContainer.addSort(new ScriptSort(sfa.script(), direction, missing));
                             }
                         } else if (attr instanceof ScoreAttribute) {
-                            qContainer = qContainer.sort(new ScoreSort(direction, missing));
+                            qContainer = qContainer.addSort(new ScoreSort(direction, missing));
                         } else {
-                            qContainer = qContainer.sort(new AttributeSort(attr, direction, missing));
+                            qContainer = qContainer.addSort(new AttributeSort(attr, direction, missing));
                         }
                     }
                 }

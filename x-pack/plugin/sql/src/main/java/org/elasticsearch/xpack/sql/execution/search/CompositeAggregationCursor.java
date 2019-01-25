@@ -49,12 +49,14 @@ public class CompositeAggregationCursor implements Cursor {
     private final String[] indices;
     private final byte[] nextQuery;
     private final List<BucketExtractor> extractors;
+    private final int[] columns;
     private final int limit;
 
-    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, int remainingLimit, String... indices) {
+    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, int[] columns, int remainingLimit, String... indices) {
         this.indices = indices;
         this.nextQuery = next;
         this.extractors = exts;
+        this.columns = columns;
         this.limit = remainingLimit;
     }
 
@@ -64,6 +66,7 @@ public class CompositeAggregationCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(BucketExtractor.class);
+        columns = in.readIntArray();
     }
 
     @Override
@@ -73,6 +76,7 @@ public class CompositeAggregationCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
+        out.writeIntArray(columns);
     }
 
     @Override
@@ -125,7 +129,7 @@ public class CompositeAggregationCursor implements Cursor {
                     }
 
                     updateCompositeAfterKey(r, query);
-                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, r, limit, serializeQuery(query), indices);
+                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, columns, r, limit, serializeQuery(query), indices);
                     listener.onResponse(rowSet);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
