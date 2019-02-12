@@ -91,7 +91,7 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected void asyncShardOperation(T request, ShardId shardId, final ActionListener<Response> listener) {
+        protected void asyncShardOperation(final T request, final ShardId shardId, final ActionListener<Response> listener) {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
             indexShard.acquirePrimaryOperationPermit(
@@ -115,11 +115,11 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected Response shardOperation(final T request, final ShardId shardId) throws IOException {
+        protected Response shardOperation(final T request, final ShardId shardId) {
             throw new UnsupportedOperationException();
         }
 
-        abstract void doRetentionLeaseAction(IndexShard indexShard, T request, ActionListener<Response> listener);
+        abstract void doRetentionLeaseAction(final IndexShard indexShard, final T request, ActionListener<Response> listener);
 
         @Override
         protected Response newResponse() {
