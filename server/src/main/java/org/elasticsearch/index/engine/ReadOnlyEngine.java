@@ -313,7 +313,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public long getMinRetainedSeqNo() {
-        throw new UnsupportedOperationException();
+        return seqNoStats.getMaxSeqNo();
     }
 
     @Override
