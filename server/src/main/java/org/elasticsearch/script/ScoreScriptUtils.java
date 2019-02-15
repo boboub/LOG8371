@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateMathParser;
@@ -92,7 +91,7 @@ public final class ScoreScriptUtils {
         }
 
         public double decayGeoLinear(GeoPoint docValue) {
-            double distance = GeoDistance.ARC.calculate(originLat, originLon, docValue.lat(), docValue.lon(), DistanceUnit.METERS);
+            double distance = GeoUtils.arcDistance(originLat, originLon, docValue.lat(), docValue.lon());
             distance = Math.max(0.0d, distance - offset);
             return Math.max(0.0, (scaling - distance) / scaling);
         }
@@ -114,7 +113,7 @@ public final class ScoreScriptUtils {
         }
 
         public double decayGeoExp(GeoPoint docValue) {
-            double distance = GeoDistance.ARC.calculate(originLat, originLon, docValue.lat(), docValue.lon(), DistanceUnit.METERS);
+            double distance = GeoUtils.arcDistance(originLat, originLon, docValue.lat(), docValue.lon());
             distance = Math.max(0.0d, distance - offset);
             return Math.exp(scaling * distance);
         }
@@ -136,7 +135,7 @@ public final class ScoreScriptUtils {
         }
 
         public double decayGeoGauss(GeoPoint docValue) {
-            double distance = GeoDistance.ARC.calculate(originLat, originLon, docValue.lat(), docValue.lon(), DistanceUnit.METERS);
+            double distance = GeoUtils.arcDistance(originLat, originLon, docValue.lat(), docValue.lon());
             distance = Math.max(0.0d, distance - offset);
             return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
         }

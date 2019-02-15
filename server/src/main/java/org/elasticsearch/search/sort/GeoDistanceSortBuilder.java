@@ -501,7 +501,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     order = SortOrder.fromString(parser.text());
                 } else if (UNIT_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (VALIDATION_METHOD_FIELD.match(currentName)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     validation = GeoValidationMethod.fromString(parser.text());
                 } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());
