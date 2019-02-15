@@ -92,9 +92,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
         }
         if (randomBoolean()) {
-            result.geoDistance(geoDistance(result.geoDistance()));
-        }
-        if (randomBoolean()) {
             result.unit(randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
         }
         if (randomBoolean()) {
