@@ -125,7 +125,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests.get(0), instanceOf(GetRequest.class));
         GetRequest request = (GetRequest) requests.get(0);
         assertThat(request.index(), equalTo(SecurityIndexManager.SECURITY_INDEX_NAME));
-        assertThat(request.type(), equalTo("doc"));
+        assertThat(request.type(), equalTo("_doc"));
         assertThat(request.id(), equalTo("application-privilege_myapp:admin"));
 
         final String docSource = Strings.toString(sourcePrivilege);
@@ -143,7 +143,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests.get(0), instanceOf(GetRequest.class));
         GetRequest request = (GetRequest) requests.get(0);
         assertThat(request.index(), equalTo(SecurityIndexManager.SECURITY_INDEX_NAME));
-        assertThat(request.type(), equalTo("doc"));
+        assertThat(request.type(), equalTo("_doc"));
         assertThat(request.id(), equalTo("application-privilege_myapp:admin"));
 
         listener.get().onResponse(new GetResponse(
@@ -229,7 +229,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ApplicationPrivilegeDescriptor privilege = putPrivileges.get(i);
             IndexRequest request = indexRequests.get(i);
             assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
-            assertThat(request.type(), equalTo("doc"));
+            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.id(), equalTo(
                 "application-privilege_" + privilege.getApplication() + ":" + privilege.getName()
             ));
@@ -274,7 +274,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             String name = privilegeNames.get(i);
             DeleteRequest request = deletes.get(i);
             assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
-            assertThat(request.type(), equalTo("doc"));
+            assertThat(request.type(), equalTo("_doc"));
             assertThat(request.id(), equalTo("application-privilege_app1:" + name));
             final boolean found = name.equals("p2") == false;
             deleteListener.onResponse(new DeleteResponse(

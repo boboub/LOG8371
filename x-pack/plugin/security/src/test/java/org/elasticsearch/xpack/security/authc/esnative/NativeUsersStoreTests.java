@@ -111,7 +111,7 @@ public class NativeUsersStoreTests extends ESTestCase {
 
         final GetResult result = new GetResult(
                 SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                "_doc",
                 NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
             0, 1, 1L,
                 true,
@@ -180,7 +180,7 @@ public class NativeUsersStoreTests extends ESTestCase {
 
         final GetResult getResult = new GetResult(
                 SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                "_doc",
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 UNASSIGNED_SEQ_NO, 0, 1L,
                 false,
@@ -222,7 +222,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
                 SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                "_doc",
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 0, 1, 1L,
                 true,

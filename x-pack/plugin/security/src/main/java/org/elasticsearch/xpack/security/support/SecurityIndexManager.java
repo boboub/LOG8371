@@ -306,7 +306,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             Tuple<String, Settings> mappingAndSettings = loadMappingAndSettingsSourceFromTemplate();
             CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX)
                     .alias(new Alias(SECURITY_INDEX_NAME))
-                    .mapping("doc", mappingAndSettings.v1(), XContentType.JSON)
+                    .mapping("_doc", mappingAndSettings.v1(), XContentType.JSON)
                     .waitForActiveShards(ActiveShardCount.ALL)
                     .settings(mappingAndSettings.v2());
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -337,7 +337,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 "security index [{}] (alias [{}]) is not up to date. Updating mapping", indexState.concreteIndexName, SECURITY_INDEX_NAME);
             PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName)
                     .source(loadMappingAndSettingsSourceFromTemplate().v1(), XContentType.JSON)
-                    .type("doc");
+                    .type("_doc");
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                         if (putMappingResponse.isAcknowledged()) {
@@ -355,7 +355,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final byte[] template = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json",
                 Version.CURRENT.toString(), SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(SECURITY_TEMPLATE_NAME).source(template, XContentType.JSON);
-        return new Tuple<>(request.mappings().get("doc"), request.settings());
+        return new Tuple<>(request.mappings().get("_doc"), request.settings());
     }
 
     /**

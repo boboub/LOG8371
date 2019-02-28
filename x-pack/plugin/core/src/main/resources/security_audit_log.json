@@ -5,7 +5,7 @@
     "index.format": 6
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "_meta": {
         "security-version": "${security.template.version}"
       },

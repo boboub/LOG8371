@@ -162,7 +162,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the creation time to the day before
         Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
         assertTrue(Instant.now().isAfter(yesterday));
-        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
+        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "_doc", docId.get())
             .setDoc("creation_time", yesterday.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();

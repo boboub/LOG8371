@@ -334,7 +334,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
         UpdateResponse expirationDateUpdatedResponse = client
-                .prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", createdApiKeys.get(0).getId())
+                .prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "_doc", createdApiKeys.get(0).getId())
                 .setDoc("expiration_time", dayBefore.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
@@ -343,7 +343,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
         expirationDateUpdatedResponse = client
-                .prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", createdApiKeys.get(1).getId())
+                .prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "_doc", createdApiKeys.get(1).getId())
                 .setDoc("expiration_time", weekBefore.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
