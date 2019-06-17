@@ -51,12 +51,6 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-forecast,Forecast job behavior>>, <<ml-delete-forecast,Delete forecasts>>
 
 [float]
-[[ml-api-aggregations]]
-=== Aggregations
-
-* <<pca-aggregation,Principal Component Analysis>>
-
-[float]
 [[ml-api-snapshot-endpoint]]
 === Model Snapshots
 
@@ -103,8 +97,6 @@ machine learning APIs and in advanced job configuration options in Kibana.
 //ADD
 include::post-calendar-event.asciidoc[]
 include::put-calendar-job.asciidoc[]
-//AGGREGATIONS
-include::pca-aggregation.asciidoc[]
 //CLOSE
 include::close-job.asciidoc[]
 //CREATE
