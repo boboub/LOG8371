@@ -113,15 +113,58 @@ public class InternalMatrixStats extends BaseInternalMatrixStats {
         return builder;
     }
 
-//    @Override
-//    protected int doHashCode() {
-//        return Objects.hash(stats, results);
-//    }
-//
-//    @Override
-//    protected boolean doEquals(Object obj) {
-//        InternalMatrixStats other = (InternalMatrixStats) obj;
-//        return Objects.equals(this.stats, other.stats) &&
-//            Objects.equals(this.results, other.results);
-//    }
+    @Override
+    public Object getProperty(List<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        } else if (path.size() == 1) {
+            String element = path.get(0);
+            if (results == null) {
+                return emptyMap();
+            }
+            switch (element) {
+                case "counts":
+                    return results.getFieldCounts();
+                case "means":
+                    return results.getMeans();
+                case "variances":
+                    return results.getVariances();
+                case "skewness":
+                    return results.getSkewness();
+                case "kurtosis":
+                    return results.getKurtosis();
+                case "covariance":
+                    return results.getCovariances();
+                case "correlation":
+                    return results.getCorrelations();
+                default:
+                    throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
+            }
+        } else {
+            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+        }
+    }
+
+    @Override
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        // merge stats across all shards
+        List<InternalAggregation> aggs = new ArrayList<>(aggregations);
+        aggs.removeIf(p -> ((InternalMatrixStats)p).stats == null);
+
+        // return empty result iff all stats are null
+        if (aggs.isEmpty()) {
+            return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), pipelineAggregators(), getMetaData());
+        }
+
+        RunningStats runningStats = new RunningStats();
+        for (InternalAggregation agg : aggs) {
+            runningStats.merge(((InternalMatrixStats) agg).stats);
+        }
+
+        if (reduceContext.isFinalReduce()) {
+            MatrixStatsResults results = new MatrixStatsResults(runningStats);
+            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
+        }
+        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, pipelineAggregators(), getMetaData());
+    }
 }
