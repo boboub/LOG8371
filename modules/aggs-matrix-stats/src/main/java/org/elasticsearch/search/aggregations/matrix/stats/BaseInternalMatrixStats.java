@@ -211,14 +211,17 @@ public abstract class BaseInternalMatrixStats extends InternalAggregation implem
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(stats, results);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), stats, results);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
-        BaseInternalMatrixStats other = (BaseInternalMatrixStats) obj;
-        return Objects.equals(this.stats, other.stats) &&
-            Objects.equals(this.results, other.results);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BaseInternalMatrixStats)) return false;
+        if (!super.equals(o)) return false;
+        BaseInternalMatrixStats that = (BaseInternalMatrixStats) o;
+        return Objects.equals(stats, that.stats) &&
+            Objects.equals(results, that.results);
     }
 }
