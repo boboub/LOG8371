@@ -1,0 +1,60 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-geo'
+    description 'Elasticsearch Expanded Pack Plugin - Geo'
+    classname 'org.elasticsearch.xpack.geo.Geo'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-geo'
+
+dependencies {
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    compile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
+    testCompile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
+
+    if (isEclipse) {
+        testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+
+    // This should not be here
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+    
+    if (isEclipse == false) {
+        testCompile("org.elasticsearch.test:framework:${version}") {
+            // tests use the locally compiled version of server
+            exclude group: 'org.elasticsearch', module: 'elasticsearch'
+        }
+    }
+}
+
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+task testJar(type: Jar) {
+    appendix 'test'
+    from sourceSets.test.output
+}
+artifacts {
+    // normal es plugins do not publish the jar but we need to since users need it for extensions
+    archives jar
+    testArtifacts testJar
+}
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+    project.subprojects
+            .find { it.path == project.path + ":qa" }
+            .subprojects
+            .findAll { it.path.startsWith(project.path + ":qa") }
+            .each { check.dependsOn it.check }
+}
+
+run {
+    plugin xpackModule('core')
+}
+
+integTest.enabled = false

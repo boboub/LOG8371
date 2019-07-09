@@ -795,6 +795,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if Geo support should be enabled.
+     * <p>
+     *  Geo is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isGeoAllowed() {
+        return status.active;
+    }
+
+    /**
      * Creates a copy of this object based on the state at the time the method was called. The
      * returned object will not be modified by a license update/expiration so it can be used to
      * make multiple method calls on the license state safely. This object should not be long
