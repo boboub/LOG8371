@@ -42,7 +42,7 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, org.elasticsearch.g
     /**
      * Build an envelope from the top left and bottom right coordinates.
      */
-    public EnvelopeBuilder(Coordinate topLeft, Coordinate bottomRight) {
+    public EnvelopeBuilder(Coordinate topLeft, Coordinate bottomRight, final boolean isGeo) {
         Objects.requireNonNull(topLeft, "topLeft of envelope cannot be null");
         Objects.requireNonNull(bottomRight, "bottomRight of envelope cannot be null");
         if (Double.isNaN(topLeft.z) != Double.isNaN(bottomRight.z)) {
@@ -50,18 +50,21 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, org.elasticsearch.g
         }
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
+        this.wrapdateline = isGeo;
     }
 
     /**
      * Read from a stream.
      */
     public EnvelopeBuilder(StreamInput in) throws IOException {
+        this.wrapdateline = in.readOptionalBoolean();
         topLeft = readFromStream(in);
         bottomRight = readFromStream(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalBoolean(this.wrapdateline);
         writeCoordinateTo(topLeft, out);
         writeCoordinateTo(bottomRight, out);
     }

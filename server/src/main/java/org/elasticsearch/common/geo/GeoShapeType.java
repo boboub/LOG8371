@@ -49,8 +49,8 @@ public enum GeoShapeType {
     POINT("point") {
         @Override
         public PointBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
-            return new PointBuilder().coordinate(validate(coordinates, coerce).coordinate);
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
+            return new PointBuilder(isGeo).coordinate(validate(coordinates, coerce).coordinate);
         }
 
         @Override
@@ -67,13 +67,13 @@ public enum GeoShapeType {
     MULTIPOINT("multipoint") {
         @Override
         public MultiPointBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
             validate(coordinates, coerce);
             CoordinatesBuilder coordinatesBuilder = new CoordinatesBuilder();
             for (CoordinateNode node : coordinates.children) {
                 coordinatesBuilder.coordinate(node.coordinate);
             }
-            return new MultiPointBuilder(coordinatesBuilder.build());
+            return new MultiPointBuilder(coordinatesBuilder.build(), isGeo);
         }
 
         @Override
@@ -97,13 +97,13 @@ public enum GeoShapeType {
     LINESTRING("linestring") {
         @Override
         public LineStringBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
             validate(coordinates, coerce);
             CoordinatesBuilder line = new CoordinatesBuilder();
             for (CoordinateNode node : coordinates.children) {
                 line.coordinate(node.coordinate);
             }
-            return new LineStringBuilder(line);
+            return new LineStringBuilder(line, isGeo);
         }
 
         @Override
@@ -118,11 +118,11 @@ public enum GeoShapeType {
     MULTILINESTRING("multilinestring") {
         @Override
         public MultiLineStringBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
             validate(coordinates, coerce);
             MultiLineStringBuilder multiline = new MultiLineStringBuilder();
             for (CoordinateNode node : coordinates.children) {
-                multiline.linestring(LineStringBuilder.class.cast(LINESTRING.getBuilder(node, radius, orientation, coerce)));
+                multiline.linestring(LineStringBuilder.class.cast(LINESTRING.getBuilder(node, radius, orientation, coerce, isGeo)));
             }
             return multiline;
         }
@@ -139,16 +139,16 @@ public enum GeoShapeType {
     POLYGON("polygon") {
         @Override
         public PolygonBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
             validate(coordinates, coerce);
             // build shell
             LineStringBuilder shell = LineStringBuilder.class.cast(LINESTRING.getBuilder(coordinates.children.get(0),
-                radius, orientation, coerce));
+                radius, orientation, coerce, isGeo));
             // build polygon with shell and holes
-            PolygonBuilder polygon = new PolygonBuilder(shell, orientation);
+            PolygonBuilder polygon = new PolygonBuilder(shell, orientation, isGeo);
             for (int i = 1; i < coordinates.children.size(); ++i) {
                 CoordinateNode child = coordinates.children.get(i);
-                LineStringBuilder hole = LineStringBuilder.class.cast(LINESTRING.getBuilder(child, radius, orientation, coerce));
+                LineStringBuilder hole = LineStringBuilder.class.cast(LINESTRING.getBuilder(child, radius, orientation, coerce, isGeo));
                 polygon.hole(hole);
             }
             return polygon;
@@ -200,11 +200,11 @@ public enum GeoShapeType {
     MULTIPOLYGON("multipolygon") {
         @Override
         public MultiPolygonBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
             validate(coordinates, coerce);
             MultiPolygonBuilder polygons = new MultiPolygonBuilder(orientation);
             for (CoordinateNode node : coordinates.children) {
-                polygons.polygon(PolygonBuilder.class.cast(POLYGON.getBuilder(node, radius, orientation, coerce)));
+                polygons.polygon(PolygonBuilder.class.cast(POLYGON.getBuilder(node, radius, orientation, coerce, isGeo)));
             }
             return polygons;
         }
@@ -218,12 +218,12 @@ public enum GeoShapeType {
     ENVELOPE("envelope") {
         @Override
         public EnvelopeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
             validate(coordinates, coerce);
             // verify coordinate bounds, correct if necessary
             Coordinate uL = coordinates.children.get(0).coordinate;
             Coordinate lR = coordinates.children.get(1).coordinate;
-            return new EnvelopeBuilder(uL, lR);
+            return new EnvelopeBuilder(uL, lR, isGeo);
         }
 
         @Override
@@ -245,8 +245,8 @@ public enum GeoShapeType {
     CIRCLE("circle") {
         @Override
         public CircleBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
-            return new CircleBuilder().center(coordinates.coordinate).radius(radius);
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
+            return new CircleBuilder(isGeo).center(coordinates.coordinate).radius(radius);
 
         }
 
@@ -259,7 +259,7 @@ public enum GeoShapeType {
     GEOMETRYCOLLECTION("geometrycollection") {
         @Override
         public ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                       Orientation orientation, boolean coerce) {
+                                       Orientation orientation, boolean coerce, boolean isGeo) {
             // noop, handled in parser
             return null;
         }
@@ -299,7 +299,7 @@ public enum GeoShapeType {
     }
 
     public abstract ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                            ShapeBuilder.Orientation orientation, boolean coerce);
+                                            ShapeBuilder.Orientation orientation, boolean coerce, boolean isGeo);
     abstract CoordinateNode validate(CoordinateNode coordinates, boolean coerce);
 
     /** wkt shape name */

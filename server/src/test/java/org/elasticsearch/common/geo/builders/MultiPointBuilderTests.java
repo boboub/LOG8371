@@ -30,26 +30,26 @@ import java.util.List;
 public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPointBuilder> {
 
     public void testInvalidBuilderException() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MultiPointBuilder((List<Coordinate>) null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MultiPointBuilder(null, isGeo()));
         assertEquals("cannot create point collection with empty set of points", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> new MultiPointBuilder(new CoordinatesBuilder().build()));
+        e = expectThrows(IllegalArgumentException.class, () -> new MultiPointBuilder(new CoordinatesBuilder().build(), isGeo()));
         assertEquals("cannot create point collection with empty set of points", e.getMessage());
 
         // one point is minimum
-        new MultiPointBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).build());
+        new MultiPointBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).build(), isGeo());
     }
 
     @Override
     protected MultiPointBuilder createTestShapeBuilder() {
-        return createRandomShape();
+        return createRandomShape(isGeo());
     }
 
     @Override
     protected MultiPointBuilder createMutation(MultiPointBuilder original) throws IOException {
-        return mutate(original);
+        return mutate(original, isGeo());
     }
 
-    static MultiPointBuilder mutate(MultiPointBuilder original) throws IOException {
+    static MultiPointBuilder mutate(MultiPointBuilder original, final boolean isGeo) throws IOException {
         MultiPointBuilder mutation = (MultiPointBuilder) copyShape(original);
         Coordinate[] coordinates = original.coordinates(false);
         if (coordinates.length > 0) {
@@ -70,10 +70,11 @@ public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPo
         } else {
             coordinates = new Coordinate[]{new Coordinate(1.0, 1.0)};
         }
-        return MultiPointBuilder.class.cast(mutation.coordinates(coordinates));
+        return MultiPointBuilder.class.cast(mutation.coordinates(coordinates).setIsGeo(isGeo));
     }
 
-    static MultiPointBuilder createRandomShape() {
-        return (MultiPointBuilder) RandomShapeGenerator.createShape(random(), ShapeType.MULTIPOINT);
+    static MultiPointBuilder createRandomShape(final boolean isGeo) {
+        MultiPointBuilder mpb = (MultiPointBuilder) RandomShapeGenerator.createShape(random(), ShapeType.MULTIPOINT);
+        return mpb.setIsGeo(isGeo);
     }
 }

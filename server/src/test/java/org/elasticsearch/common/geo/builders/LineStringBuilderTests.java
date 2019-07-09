@@ -30,25 +30,26 @@ import java.util.List;
 public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStringBuilder> {
 
     public void testInvalidConstructorArgs() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder((List<Coordinate>) null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder((List<Coordinate>) null, isGeo()));
         assertEquals("cannot create point collection with empty set of points", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder(new CoordinatesBuilder()));
+        e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder(new CoordinatesBuilder(), isGeo()));
         assertEquals("cannot create point collection with empty set of points", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0)));
+        e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder(new CoordinatesBuilder()
+            .coordinate(0.0, 0.0), isGeo()));
         assertEquals("invalid number of points in LineString (found [1] - must be >= 2)", e.getMessage());
     }
 
     @Override
     protected LineStringBuilder createTestShapeBuilder() {
-        return createRandomShape();
+        return createRandomShape(isGeo());
     }
 
     @Override
     protected LineStringBuilder createMutation(LineStringBuilder original) throws IOException {
-        return mutate(original);
+        return mutate(original, isGeo());
     }
 
-    static LineStringBuilder mutate(LineStringBuilder original) throws IOException {
+    static LineStringBuilder mutate(LineStringBuilder original, final boolean isGeo) throws IOException {
         LineStringBuilder mutation = copyShape(original);
         Coordinate[] coordinates = original.coordinates(false);
         Coordinate coordinate = randomFrom(coordinates);
@@ -65,14 +66,14 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
                 coordinate.y = randomDoubleBetween(-90.0, 90.0, true);
             }
         }
-        return LineStringBuilder.class.cast(mutation.coordinates(coordinates));
+        return LineStringBuilder.class.cast(mutation.coordinates(coordinates).setIsGeo(isGeo));
     }
 
-    static LineStringBuilder createRandomShape() {
+    static LineStringBuilder createRandomShape(final boolean isGeo) {
         LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(random(), ShapeType.LINESTRING);
         if (randomBoolean()) {
             lsb.close();
         }
-        return lsb;
+        return lsb.setIsGeo(isGeo);
     }
 }

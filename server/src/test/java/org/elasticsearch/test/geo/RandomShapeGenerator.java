@@ -125,7 +125,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
             bounds = xRandomRectangle(r, nearPoint);
         }
 
-        GeometryCollectionBuilder gcb = new GeometryCollectionBuilder();
+        GeometryCollectionBuilder gcb = new GeometryCollectionBuilder(true);
         for (int i=0; i<numGeometries;) {
             ShapeBuilder builder = createShapeWithin(r, bounds);
             // due to world wrapping, and the possibility for ambiguous polygons, the random shape generation could bail with
@@ -179,7 +179,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         switch (st) {
             case POINT:
                 Point p = xRandomPointIn(r, within);
-                PointBuilder pb = new PointBuilder().coordinate(new Coordinate(p.getX(), p.getY(), Double.NaN));
+                PointBuilder pb = new PointBuilder(true).coordinate(new Coordinate(p.getX(), p.getY(), Double.NaN));
                 return pb;
             case MULTIPOINT:
             case LINESTRING:
@@ -193,8 +193,8 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     coordinatesBuilder.coordinate(p.getX(), p.getY());
                 }
                 ShapeBuilder pcb = (st == ShapeType.MULTIPOINT)
-                    ? new MultiPointBuilder(coordinatesBuilder.build())
-                    : new LineStringBuilder(coordinatesBuilder);
+                    ? new MultiPointBuilder(coordinatesBuilder.build(), true)
+                    : new LineStringBuilder(coordinatesBuilder, true);
                 return pcb;
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();
@@ -222,7 +222,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     shellCoords[2] = new Coordinate(within.getMaxX(), within.getMaxY());
                     shellCoords[3] = new Coordinate(within.getMaxX(), within.getMinY());
                 }
-                PolygonBuilder pgb = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoords).close());
+                PolygonBuilder pgb = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoords).close(), true);
                 if (validate) {
                     // This test framework builds semi-random geometry (in the sense that points are not truly random due to spatial
                     // auto-correlation) As a result of the semi-random nature of the geometry, one can not predict the orientation

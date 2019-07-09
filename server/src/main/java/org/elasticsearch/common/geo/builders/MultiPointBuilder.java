@@ -41,15 +41,15 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
      * Create a new {@link MultiPointBuilder}.
      * @param coordinates needs at least two coordinates to be valid, otherwise will throw an exception
      */
-    public MultiPointBuilder(List<Coordinate> coordinates) {
-        super(coordinates);
+    public MultiPointBuilder(List<Coordinate> coordinates, boolean isGeo) {
+        super(coordinates, isGeo);
     }
 
     /**
      * Creates a new empty MultiPoint builder
      */
-    public MultiPointBuilder() {
-        super();
+    public MultiPointBuilder(boolean isGeo) {
+        super(isGeo);
     }
 
     /**

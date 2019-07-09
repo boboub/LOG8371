@@ -34,14 +34,13 @@ public class PointBuilder extends ShapeBuilder<Point, org.elasticsearch.geo.geom
     /**
      * Create a point at [0.0,0.0]
      */
-    public PointBuilder() {
-        super();
+    public PointBuilder(final boolean isGeo) {
+        super(isGeo);
         this.coordinates.add(ZERO_ZERO);
     }
 
-    public PointBuilder(double lon, double lat) {
-        //super(new ArrayList<>(1));
-        super();
+    public PointBuilder(double lon, double lat, final boolean isGeo) {
+        super(isGeo);
         this.coordinates.add(new Coordinate(lon, lat));
     }
 
@@ -69,8 +68,8 @@ public class PointBuilder extends ShapeBuilder<Point, org.elasticsearch.geo.geom
      * @param latitude latitude of the point
      * @return a new {@link PointBuilder}
      */
-    public static PointBuilder newPoint(double longitude, double latitude) {
-        return new PointBuilder().coordinate(new Coordinate(longitude, latitude));
+    public static PointBuilder newPoint(double longitude, double latitude, final boolean isGeo) {
+        return new PointBuilder(isGeo).coordinate(new Coordinate(longitude, latitude));
     }
 
     @Override

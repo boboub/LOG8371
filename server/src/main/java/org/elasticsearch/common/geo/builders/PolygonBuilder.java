@@ -70,7 +70,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     // List of line strings defining the holes of the polygon
     private final List<LineStringBuilder> holes = new ArrayList<>();
 
-    public PolygonBuilder(LineStringBuilder lineString, Orientation orientation, boolean coerce) {
+    public PolygonBuilder(LineStringBuilder lineString, Orientation orientation, final boolean coerce, final boolean isGeo) {
         this.orientation = orientation;
         if (coerce) {
             lineString.close();
@@ -79,16 +79,16 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
         this.shell = lineString;
     }
 
-    public PolygonBuilder(LineStringBuilder lineString, Orientation orientation) {
-        this(lineString, orientation, false);
+    public PolygonBuilder(LineStringBuilder lineString, Orientation orientation, final boolean isGeo) {
+        this(lineString, orientation, false, isGeo);
     }
 
-    public PolygonBuilder(CoordinatesBuilder coordinates, Orientation orientation) {
-        this(new LineStringBuilder(coordinates), orientation, false);
+    public PolygonBuilder(CoordinatesBuilder coordinates, Orientation orientation, final boolean isGeo) {
+        this(new LineStringBuilder(coordinates, isGeo), orientation, false);
     }
 
-    public PolygonBuilder(CoordinatesBuilder coordinates) {
-        this(coordinates, Orientation.RIGHT);
+    public PolygonBuilder(CoordinatesBuilder coordinates, final boolean isGeo) {
+        this(coordinates, Orientation.RIGHT, isGeo);
     }
 
     /**

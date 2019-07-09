@@ -41,14 +41,9 @@ import java.util.List;
  *
  * complies with geojson specification: https://tools.ietf.org/html/rfc7946
  */
-abstract class GeoJsonParser {
+public abstract class GeoJsonParser {
     protected static ShapeBuilder parse(XContentParser parser, BaseGeoShapeFieldMapper shapeMapper)
-        throws IOException {
-        GeoShapeType shapeType = null;
-        DistanceUnit.Distance radius = null;
-        CoordinateNode coordinateNode = null;
-        GeometryCollectionBuilder geometryCollections = null;
-
+            throws IOException {
         Orientation orientation = (shapeMapper == null)
             ? BaseGeoShapeFieldMapper.Defaults.ORIENTATION.value()
             : shapeMapper.orientation();
@@ -59,6 +54,15 @@ abstract class GeoJsonParser {
             ? BaseGeoShapeFieldMapper.Defaults.IGNORE_Z_VALUE
             : shapeMapper.ignoreZValue();
 
+        return parse(parser, orientation, coerce.value(), ignoreZValue.value(), true);
+    }
+
+    public static ShapeBuilder parse(XContentParser parser, Orientation orientation, final boolean coerce,
+                                        final boolean ignoreZValue, final boolean isGeo) throws IOException {
+        GeoShapeType shapeType = null;
+        DistanceUnit.Distance radius = null;
+        CoordinateNode coordinateNode = null;
+        GeometryCollectionBuilder geometryCollections = null;
         String malformedException = null;
 
         XContentParser.Token token;
@@ -78,7 +82,7 @@ abstract class GeoJsonParser {
                         }
                     } else if (ShapeParser.FIELD_COORDINATES.match(fieldName, subParser.getDeprecationHandler())) {
                         subParser.nextToken();
-                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue.value());
+                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue);
                         if (coordinateNode != null && tempNode.numDimensions() != coordinateNode.numDimensions()) {
                             throw new ElasticsearchParseException("Exception parsing coordinates: " +
                                 "number of dimensions do not match");
@@ -92,7 +96,7 @@ abstract class GeoJsonParser {
                                 + shapeType + "]";
                         }
                         subParser.nextToken();
-                        geometryCollections = parseGeometries(subParser, shapeMapper);
+                        geometryCollections = parseGeometries(subParser, isGeo);
                     } else if (CircleBuilder.FIELD_RADIUS.match(fieldName, subParser.getDeprecationHandler())) {
                         if (shapeType == null) {
                             shapeType = GeoShapeType.CIRCLE;
@@ -134,7 +138,7 @@ abstract class GeoJsonParser {
             return geometryCollections;
         }
 
-        return shapeType.getBuilder(coordinateNode, radius, orientation, coerce.value());
+        return shapeType.getBuilder(coordinateNode, radius, orientation, coerce, isGeo);
     }
 
     /**
@@ -208,14 +212,14 @@ abstract class GeoJsonParser {
      * @return Geometry[] geometries of the GeometryCollection
      * @throws IOException Thrown if an error occurs while reading from the XContentParser
      */
-    static GeometryCollectionBuilder parseGeometries(XContentParser parser, BaseGeoShapeFieldMapper mapper) throws
+    static GeometryCollectionBuilder parseGeometries(XContentParser parser, final boolean isGeo) throws
         IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("geometries must be an array of geojson objects");
         }
 
         XContentParser.Token token = parser.nextToken();
-        GeometryCollectionBuilder geometryCollection = new GeometryCollectionBuilder();
+        GeometryCollectionBuilder geometryCollection = new GeometryCollectionBuilder(isGeo);
         while (token != XContentParser.Token.END_ARRAY) {
             ShapeBuilder shapeBuilder = ShapeParser.parse(parser);
             geometryCollection.shape(shapeBuilder);

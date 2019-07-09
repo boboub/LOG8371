@@ -120,7 +120,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
 
         response = client().prepareSearch("test-idx")
                 .setPostFilter(QueryBuilders.geoShapeQuery("field.shape",
-                    new EnvelopeBuilder(new Coordinate(-101, 46), new Coordinate(-99, 44))).relation(ShapeRelation.WITHIN))
+                    new EnvelopeBuilder(new Coordinate(-101, 46), new Coordinate(-99, 44), true)).relation(ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));

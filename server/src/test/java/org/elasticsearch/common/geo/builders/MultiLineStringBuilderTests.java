@@ -29,15 +29,15 @@ public class MultiLineStringBuilderTests extends AbstractShapeBuilderTestCase<Mu
 
     @Override
     protected MultiLineStringBuilder createTestShapeBuilder() {
-        return createRandomShape();
+        return createRandomShape(isGeo());
     }
 
     @Override
     protected MultiLineStringBuilder createMutation(MultiLineStringBuilder original) throws IOException {
-        return mutate(original);
+        return mutate(original, isGeo());
     }
 
-    static MultiLineStringBuilder mutate(MultiLineStringBuilder original) throws IOException {
+    static MultiLineStringBuilder mutate(MultiLineStringBuilder original, final boolean isGeo) throws IOException {
         MultiLineStringBuilder mutation = (MultiLineStringBuilder) copyShape(original);
         Coordinate[][] coordinates = mutation.coordinates();
         if (coordinates.length > 0) {
@@ -64,10 +64,11 @@ public class MultiLineStringBuilderTests extends AbstractShapeBuilderTestCase<Mu
         } else {
             mutation.linestring((LineStringBuilder) RandomShapeGenerator.createShape(random(), ShapeType.LINESTRING));
         }
-        return mutation;
+        return mutation.setIsGeo(isGeo);
     }
 
-    static MultiLineStringBuilder createRandomShape() {
-        return MultiLineStringBuilder.class.cast(RandomShapeGenerator.createShape(random(), ShapeType.MULTILINESTRING));
+    static MultiLineStringBuilder createRandomShape(final boolean isGeo) {
+        MultiLineStringBuilder mlsb = MultiLineStringBuilder.class.cast(RandomShapeGenerator.createShape(random(), ShapeType.MULTILINESTRING));
+        return mlsb.setIsGeo(isGeo);
     }
 }

@@ -46,9 +46,10 @@ import static org.hamcrest.Matchers.containsString;
  * Tests for {@link ShapeBuilder}
  */
 public class ShapeBuilderTests extends ESTestCase {
+    boolean isGeo = true;
 
     public void testNewPoint() {
-        PointBuilder pb = new PointBuilder().coordinate(-100, 45);
+        PointBuilder pb = new PointBuilder(isGeo).coordinate(-100, 45);
         Point point = pb.buildS4J();
         assertEquals(-100D, point.getX(), 0.0d);
         assertEquals(45D, point.getY(), 0.0d);
@@ -58,7 +59,7 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testNewRectangle() {
-        EnvelopeBuilder eb = new EnvelopeBuilder(new Coordinate(-45, 30), new Coordinate(45, -30));
+        EnvelopeBuilder eb = new EnvelopeBuilder(new Coordinate(-45, 30), new Coordinate(45, -30), isGeo);
         Rectangle rectangle = eb.buildS4J();
         assertEquals(-45D, rectangle.getMinX(), 0.0d);
         assertEquals(-30D, rectangle.getMinY(), 0.0d);
@@ -78,7 +79,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(45, 30)
                 .coordinate(45, -30)
                 .coordinate(-45, -30)
-                .coordinate(-45, 30));
+                .coordinate(-45, 30), isGeo);
 
         Polygon poly = pb.toPolygonS4J();
         LineString exterior = poly.getExteriorRing();
@@ -104,7 +105,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(new Coordinate(45, 30))
                 .coordinate(new Coordinate(45, -30))
                 .coordinate(new Coordinate(-45, -30))
-                .coordinate(new Coordinate(-45, 30)));
+                .coordinate(new Coordinate(-45, 30)), isGeo);
 
         Polygon poly = pb.toPolygonS4J();
         LineString exterior = poly.getExteriorRing();
@@ -127,8 +128,8 @@ public class ShapeBuilderTests extends ESTestCase {
     public void testNewPolygon_coordinates() {
         PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinates(new Coordinate(-45, 30), new Coordinate(45, 30),
-                    new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30))
-                );
+                    new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30)),
+                    isGeo);
 
         Polygon poly = pb.toPolygonS4J();
         LineString exterior = poly.getExteriorRing();
@@ -158,7 +159,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-45.0, 50.0)
             .coordinate(-45.0, -15.0)
             .coordinate(-110.0, -15.0)
-            .coordinate(-110.0, 55.0));
+            .coordinate(-110.0, 55.0), isGeo);
 
         lsb.buildS4J();
         lsb.buildGeometry();
@@ -172,7 +173,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(200.0, 60.0)
         .coordinate(200.0, -30.0)
         .coordinate(130.0, -30.0)
-        .coordinate(130.0, 60.0));
+        .coordinate(130.0, 60.0), isGeo);
 
         lsb.buildS4J();
         lsb.buildGeometry();
@@ -182,7 +183,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(-180.0, 80.0)
         .coordinate(-180.0, 40.0)
         .coordinate(-180.0, -40.0)
-        .coordinate(-180.0, -80.0));
+        .coordinate(-180.0, -80.0), isGeo);
 
         lsb.buildS4J();
         lsb.buildGeometry();
@@ -192,7 +193,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(180.0, 80.0)
         .coordinate(180.0, 40.0)
         .coordinate(180.0, -40.0)
-        .coordinate(180.0, -80.0));
+        .coordinate(180.0, -80.0), isGeo);
 
         lsb.buildS4J();
         lsb.buildGeometry();
@@ -204,15 +205,15 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(-100.0, 50.0)
                 .coordinate(50.0, 50.0)
                 .coordinate(50.0, 20.0)
-                .coordinate(-100.0, 20.0)
-                )
+                .coordinate(-100.0, 20.0),
+                isGeo)
             )
             .linestring(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(-100.0, 20.0)
                 .coordinate(50.0, 20.0)
                 .coordinate(50.0, 0.0)
-                .coordinate(-100.0, 0.0)
-                )
+                .coordinate(-100.0, 0.0),
+                isGeo)
             );
         mlsb.buildS4J();
         mlsb.buildGeometry();
@@ -223,16 +224,14 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(150.0, 60.0)
                 .coordinate(200.0, 60.0)
                 .coordinate(200.0, 40.0)
-                .coordinate(150.0,  40.0)
-                )
-                )
+                .coordinate(150.0,  40.0),
+            isGeo))
             .linestring(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(150.0, 20.0)
                 .coordinate(200.0, 20.0)
                 .coordinate(200.0, 0.0)
-                .coordinate(150.0, 0.0)
-                )
-                );
+                .coordinate(150.0, 0.0),
+            isGeo));
 
         mlsb.buildS4J();
         mlsb.buildGeometry();
@@ -243,7 +242,7 @@ public class ShapeBuilderTests extends ESTestCase {
                     .coordinate(-40.0, 50.0)
                     .coordinate(40.0, 50.0)
                     .coordinate(-40.0, -50.0)
-                    .coordinate(40.0, -50.0).close());
+                    .coordinate(40.0, -50.0).close(), isGeo);
         Exception e = expectThrows(InvalidShapeException.class, () -> newPolygon.buildS4J());
         assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0"));
     }
@@ -251,25 +250,25 @@ public class ShapeBuilderTests extends ESTestCase {
     /** note: only supported by S4J at the moment */
     public void testGeoCircle() {
         double earthCircumference = 40075016.69;
-        Circle circle = new CircleBuilder().center(0, 0).radius("100m").buildS4J();
+        Circle circle = new CircleBuilder(isGeo).center(0, 0).radius("100m").buildS4J();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(0, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
-        circle = new CircleBuilder().center(+180, 0).radius("100m").buildS4J();
+        circle = new CircleBuilder(isGeo).center(+180, 0).radius("100m").buildS4J();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(180, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
-        circle = new CircleBuilder().center(-180, 0).radius("100m").buildS4J();
+        circle = new CircleBuilder(isGeo).center(-180, 0).radius("100m").buildS4J();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(-180, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
-        circle = new CircleBuilder().center(0, 90).radius("100m").buildS4J();
+        circle = new CircleBuilder(isGeo).center(0, 90).radius("100m").buildS4J();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(0, 90, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
-        circle = new CircleBuilder().center(0, -90).radius("100m").buildS4J();
+        circle = new CircleBuilder(isGeo).center(0, -90).radius("100m").buildS4J();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(0, -90, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
         double randomLat = (randomDouble() * 180) - 90;
         double randomLon = (randomDouble() * 360) - 180;
         double randomRadius = randomIntBetween(1, (int) earthCircumference / 4);
-        circle = new CircleBuilder().center(randomLon, randomLat).radius(randomRadius + "m").buildS4J();
+        circle = new CircleBuilder(isGeo).center(randomLon, randomLat).radius(randomRadius + "m").buildS4J();
         assertEquals((360 * randomRadius) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(randomLon, randomLat, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
     }
@@ -280,7 +279,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-250.0, 65.0)
             .coordinate(-250.0, -65.0)
             .coordinate(-150.0, -65.0)
-            .close());
+            .close(), isGeo);
 
         assertMultiPolygon(pb.buildS4J(), true);
         assertMultiPolygon(pb.buildGeometry(), false);
@@ -292,7 +291,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-250.0, 65.0)
             .coordinate(-250.0, -65.0)
             .coordinate(-150.0, -65.0)
-            .close());
+            .close(), isGeo);
 
         assertMultiLineString(lsb.buildS4J(), true);
         assertMultiLineString(lsb.buildGeometry(), false);
@@ -313,8 +312,8 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-176,5)
             .coordinate(-176,8)
             .coordinate(174,8)
-            .coordinate(174,0)
-            );
+            .coordinate(174,0),
+            isGeo);
 
         // 3/4 of an embedded 'c', crossing dateline once
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
@@ -326,8 +325,8 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(176, 2)
             .coordinate(179, 2)
             .coordinate(179,1)
-            .coordinate(175, 1)
-            ));
+            .coordinate(175, 1),
+            isGeo));
 
         // embedded hole right of the dateline
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
@@ -335,8 +334,8 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-179, 2)
             .coordinate(-177, 2)
             .coordinate(-177,1)
-            .coordinate(-179,1)
-            ));
+            .coordinate(-179,1),
+            isGeo));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
         assertMultiPolygon(builder.close().buildGeometry(), false);
@@ -357,8 +356,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(-176,5)
                 .coordinate(-176,8)
                 .coordinate(-186,8)
-                .coordinate(-186,0)
-                );
+                .coordinate(-186,0),
+                isGeo);
 
         // 3/4 of an embedded 'c', crossing dateline once
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
@@ -370,8 +369,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(-178,6)
                 .coordinate(-178,7)
                 .coordinate(-185,7)
-                .coordinate(-185,1)
-                ));
+                .coordinate(-185,1),
+                isGeo));
 
         // embedded hole right of the dateline
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
@@ -379,8 +378,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(-177,1)
                 .coordinate(-177,2)
                 .coordinate(-179,2)
-                .coordinate(-179,1)
-                ));
+                .coordinate(-179,1),
+                isGeo));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
         assertMultiPolygon(builder.close().buildGeometry(), false);
@@ -425,8 +424,8 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-85.0009461,37.1311684)
             .coordinate(-85.0011373,37.1311515)
             .coordinate(-85.0016455,37.1310491)
-            .coordinate(-85.0018514,37.1311314)
-            );
+            .coordinate(-85.0018514,37.1311314),
+            isGeo);
 
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
             .coordinate(-85.0000002,37.1317672)
@@ -454,9 +453,8 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-84.9993527,37.1317788)
             .coordinate(-84.9994931,37.1318061)
             .coordinate(-84.9996815,37.1317979)
-            .coordinate(-85.0000002,37.1317672)
-            )
-            );
+            .coordinate(-85.0000002,37.1317672),
+            isGeo));
         assertPolygon(builder.close().buildS4J(), true);
         assertPolygon(builder.close().buildGeometry(), false);
      }
@@ -469,16 +467,16 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(4, -2)
                 .coordinate(-4, -2)
                 .coordinate(-6, 0)
-                .coordinate(-4, 2)
-                );
+                .coordinate(-4, 2),
+                isGeo);
 
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
             .coordinate(4, 1)
             .coordinate(4, -1)
             .coordinate(-4, -1)
             .coordinate(-4, 1)
-            .coordinate(4, 1)
-            ));
+            .coordinate(4, 1),
+            isGeo));
         assertPolygon(builder.close().buildS4J(), true);
         assertPolygon(builder.close().buildGeometry(), false);
      }
@@ -488,8 +486,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 .coordinate(176, 4)
                 .coordinate(176, -4)
-                .coordinate(180, 0)
-                );
+                .coordinate(180, 0),
+                isGeo);
             assertPolygon(builder.close().buildS4J(), true);
             assertPolygon(builder.close().buildGeometry(), false);
      }
@@ -500,8 +498,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 .coordinate(176, 4)
                 .coordinate(180, -4)
-                .coordinate(180, 0)
-                );
+                .coordinate(180, 0),
+                isGeo);
 
         assertPolygon(builder.close().buildS4J(), true);
         assertPolygon(builder.close().buildGeometry(), false);
@@ -511,8 +509,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(-176, 4)
                 .coordinate(-180, 0)
                 .coordinate(-180, -4)
-                .coordinate(-176, 4)
-                );
+                .coordinate(-176, 4),
+                isGeo);
 
         assertPolygon(builder.close().buildS4J(), true);
         assertPolygon(builder.close().buildGeometry(), false);
@@ -526,15 +524,15 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(172, 0)
                 .coordinate(176, -15)
                 .coordinate(-177, -10)
-                .coordinate(-177, 10)
-                );
+                .coordinate(-177, 10),
+                isGeo);
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(176, 10)
                 .coordinate(180, 5)
                 .coordinate(180, -5)
                 .coordinate(176, -10)
-                .coordinate(176, 10)
-                ));
+                .coordinate(176, 10),
+                isGeo));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
         assertMultiPolygon(builder.close().buildGeometry(), false);
@@ -547,8 +545,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(179, -10)
                 .coordinate(-176, -15)
                 .coordinate(-172, 0)
-                .close()
-                );
+                .close(),
+                isGeo);
         builder.hole(new LineStringBuilder(
                 new CoordinatesBuilder()
                 .coordinate(-176, 10)
@@ -556,8 +554,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(-180, -5)
                 .coordinate(-180, 5)
                 .coordinate(-176, 10)
-                .close()
-                ));
+                .close(),
+                isGeo));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
         assertMultiPolygon(builder.close().buildGeometry(), false);
@@ -571,15 +569,15 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(164, 0)
                 .coordinate(166, -15)
                 .coordinate(179, -10)
-                .coordinate(179, 10)
-                );
+                .coordinate(179, 10),
+                isGeo);
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(-177, 10)
                 .coordinate(-178, -10)
                 .coordinate(-180, -5)
                 .coordinate(-180, 5)
-                .coordinate(-177, 10)
-                ));
+                .coordinate(-177, 10),
+                isGeo));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
         assertMultiPolygon(builder.close().buildGeometry(), false);
@@ -593,15 +591,15 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(164, 0)
                 .coordinate(166, -15)
                 .coordinate(179, -10)
-                .coordinate(179, 10)
-                );
+                .coordinate(179, 10),
+                isGeo);
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(164, 0)
                 .coordinate(175, 10)
                 .coordinate(175, 5)
                 .coordinate(179, -10)
-                .coordinate(164, 0)
-                ));
+                .coordinate(164, 0),
+                isGeo));
         Exception e;
 
         e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
@@ -618,21 +616,21 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(172, 0)
                 .coordinate(176, -15)
                 .coordinate(-177, -10)
-                .coordinate(-177, 10)
-                );
+                .coordinate(-177, 10),
+                isGeo);
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(-177, 10)
                 .coordinate(-178, -10)
                 .coordinate(-180, -5)
                 .coordinate(-180, 5)
-                .coordinate(-177, 10)
-                ));
+                .coordinate(-177, 10),
+                isGeo));
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(172, 0)
                 .coordinate(176, 10)
                 .coordinate(176, -5)
-                .coordinate(172, 0)
-                ));
+                .coordinate(172, 0),
+                isGeo));
         assertMultiPolygon(builder.close().buildS4J(), true);
         assertMultiPolygon(builder.close().buildGeometry(), false);
     }
@@ -645,15 +643,15 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(172, 0)
                 .coordinate(176, -15)
                 .coordinate(-177, -10)
-                .coordinate(-177, 10)
-                );
+                .coordinate(-177, 10),
+                isGeo);
         builder.hole(new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(-177, 10)
                 .coordinate(172, 0)
                 .coordinate(180, -5)
                 .coordinate(176, -10)
-                .coordinate(-177, 10)
-                ));
+                .coordinate(-177, 10),
+                isGeo));
         Exception e;
         e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
@@ -669,8 +667,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(-180, 90)
                 .coordinate(180, 90)
                 .coordinate(180, -90)
-                .coordinate(-180, 90)
-                );
+                .coordinate(-180, 90),
+                isGeo);
 
         assertPolygon(builder.close().buildS4J(), true);
         assertPolygon(builder.close().buildGeometry(), false);
@@ -682,8 +680,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 .coordinate(176, 4)
                 .coordinate(-176, 4)
-                .coordinate(180, 0)
-                );
+                .coordinate(180, 0),
+                isGeo);
 
         assertPolygon(builder.close().buildS4J(), true);
         assertPolygon(builder.close().buildGeometry(), false);
@@ -693,8 +691,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 .coordinate(-176, 4)
                 .coordinate(176, 4)
-                .coordinate(180, 0)
-                );
+                .coordinate(180, 0),
+                isGeo);
 
         assertMultiPolygon(builder.close().buildS4J(), true);
         assertMultiPolygon(builder.close().buildGeometry(), false);
@@ -706,8 +704,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(176, 4)
                 .coordinate(176, 4)
                 .coordinate(-176, 4)
-                .coordinate(180, 0)
-                );
+                .coordinate(180, 0),
+                isGeo);
 
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
@@ -755,7 +753,8 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(new Coordinate(45, 30, 75))
             .coordinate(new Coordinate(45, -30, 77))
             .coordinate(new Coordinate(-45, -30, 101))
-            .coordinate(new Coordinate(-45, 30, 110)));
+            .coordinate(new Coordinate(-45, 30, 110)),
+            isGeo);
 
         assertEquals(expected, pb.toString());
     }
@@ -770,7 +769,8 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(1, 1.9)
             .coordinate(2, 2)
             .coordinate(2, 0)
-            .coordinate(0, 0)
+            .coordinate(0, 0),
+            isGeo
         );
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));

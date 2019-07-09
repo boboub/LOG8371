@@ -116,4 +116,8 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?,?,?
         Reader<T> reader = (Reader<T>) namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName());
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, reader);
     }
+
+    protected boolean isGeo() {
+        return true;
+    }
 }

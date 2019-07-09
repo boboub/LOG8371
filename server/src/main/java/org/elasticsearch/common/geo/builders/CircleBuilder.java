@@ -47,8 +47,9 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.elasticsearch.geo.ge
      * Creates a circle centered at [0.0, 0.0].
      * Center can be changed by calling {@link #center(Coordinate)} later.
      */
-    public CircleBuilder() {
+    public CircleBuilder(boolean isGeo) {
         this.center = ZERO_ZERO;
+        this.wrapdateline = isGeo;
     }
 
     /**

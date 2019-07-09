@@ -48,13 +48,15 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
     /**
      * Build and empty GeometryCollectionBuilder.
      */
-    public GeometryCollectionBuilder() {
+    public GeometryCollectionBuilder(boolean isGeo) {
+        super(isGeo);
     }
 
     /**
      * Read from a stream.
      */
     public GeometryCollectionBuilder(StreamInput in) throws IOException {
+        this.wrapdateline = in.readOptionalBoolean();
         int shapes = in.readVInt();
         for (int i = 0; i < shapes; i++) {
             shape(in.readNamedWriteable(ShapeBuilder.class));
@@ -63,6 +65,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalBoolean(this.wrapdateline);
         out.writeVInt(shapes.size());
         for (ShapeBuilder shape : shapes) {
             out.writeNamedWriteable(shape);

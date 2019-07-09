@@ -75,7 +75,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     public static final GeometryFactory FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 
     /** We're expecting some geometries might cross the dateline. */
-    protected final boolean wrapdateline = SPATIAL_CONTEXT.isGeo();
+    protected boolean wrapdateline; // = SPATIAL_CONTEXT.isGeo();
 
     /** It's possible that some geometries in a MULTI* shape might overlap. With the possible exception of GeometryCollection,
      * this normally isn't allowed.
@@ -91,8 +91,14 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
         coordinates = new ArrayList<>();
     }
 
+    protected ShapeBuilder(boolean isGeo) {
+        this();
+        this.wrapdateline = isGeo;
+    }
+
     /** ctor from list of coordinates */
-    protected ShapeBuilder(List<Coordinate> coordinates) {
+    protected ShapeBuilder(List<Coordinate> coordinates, boolean isGeo) {
+        this.wrapdateline = isGeo;
         if (coordinates == null || coordinates.size() == 0) {
             throw new IllegalArgumentException("cannot create point collection with empty set of points");
         }
@@ -101,6 +107,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
 
     /** ctor from serialized stream input */
     protected ShapeBuilder(StreamInput in) throws IOException {
+        this.wrapdateline = in.readOptionalBoolean();
         int size = in.readVInt();
         coordinates = new ArrayList<>(size);
         for (int i=0; i < size; i++) {
@@ -117,6 +124,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalBoolean(wrapdateline);
         out.writeVInt(coordinates.size());
         for (Coordinate point : coordinates) {
             writeCoordinateTo(point, out);
@@ -197,6 +205,11 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
         if (AUTO_INDEX_JTS_GEOMETRY)
             jtsGeometry.index();
         return jtsGeometry;
+    }
+
+    public E setIsGeo(boolean isGeo) {
+        this.wrapdateline = isGeo;
+        return thisRef();
     }
 
     /**

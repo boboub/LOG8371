@@ -28,15 +28,15 @@ public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuild
 
     @Override
     protected CircleBuilder createTestShapeBuilder() {
-        return createRandomShape();
+        return createRandomShape(isGeo());
     }
 
     @Override
     protected CircleBuilder createMutation(CircleBuilder original) throws IOException {
-        return mutate(original);
+        return mutate(original, isGeo());
     }
 
-    static CircleBuilder mutate(CircleBuilder original) throws IOException {
+    static CircleBuilder mutate(CircleBuilder original, final boolean isGeo) throws IOException {
         CircleBuilder mutation = copyShape(original);
         double radius = original.radius();
         DistanceUnit unit = original.unit();
@@ -61,11 +61,11 @@ public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuild
             }
             unit = newRandom;
         }
-        return mutation.radius(radius, unit);
+        return mutation.radius(radius, unit).setIsGeo(isGeo);
     }
 
-    static CircleBuilder createRandomShape() {
-        CircleBuilder circle = new CircleBuilder();
+    static CircleBuilder createRandomShape(final boolean isGeo) {
+        CircleBuilder circle = new CircleBuilder(isGeo);
         if (frequently()) {
             double centerX = randomDoubleBetween(-180, 180, false);
             double centerY = randomDoubleBetween(-90, 90, false);

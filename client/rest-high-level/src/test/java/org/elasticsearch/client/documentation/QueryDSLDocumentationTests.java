@@ -188,7 +188,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                         .coordinate(10, 10)
                         .coordinate(10, 0)
                         .coordinate(0, 0)
-                        .build()));
+                        .build(), true));
             qb.relation(ShapeRelation.WITHIN);                           // <3>
             // end::geo_shape
         }

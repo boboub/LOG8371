@@ -87,7 +87,8 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, Multi
      * {@link MultiPolygonBuilder} to the polygon if polygon has different orientation.
      */
     public MultiPolygonBuilder polygon(PolygonBuilder polygon) {
-        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinates(polygon.shell().coordinates(false)), this.orientation);
+        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinates(polygon.shell().coordinates(false)),
+            this.orientation, this.wrapdateline);
         for (LineStringBuilder hole : polygon.holes()) {
             pb.hole(hole);
         }

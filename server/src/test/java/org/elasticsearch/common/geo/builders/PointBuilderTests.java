@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.apache.lucene.geo.GeoTestUtil;
 import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
@@ -29,20 +30,20 @@ public class PointBuilderTests extends AbstractShapeBuilderTestCase<PointBuilder
 
     @Override
     protected PointBuilder createTestShapeBuilder() {
-        return createRandomShape();
+        return createRandomShape(isGeo());
     }
 
     @Override
     protected PointBuilder createMutation(PointBuilder original) throws IOException {
-        return mutate(original);
+        return mutate(original, isGeo());
     }
 
-    static PointBuilder mutate(PointBuilder original) {
-        return new PointBuilder().coordinate(new Coordinate(original.longitude() / 2, original.latitude() / 2));
+    static PointBuilder mutate(PointBuilder original, final boolean isGeo) {
+        return new PointBuilder(true).coordinate(new Coordinate(original.longitude() / 2, original.latitude() / 2)).setIsGeo(isGeo);
     }
 
-    static PointBuilder createRandomShape() {
-        return (PointBuilder) RandomShapeGenerator.createShape(random(), ShapeType.POINT);
+    static PointBuilder createRandomShape(final boolean isGeo) {
+        return new PointBuilder(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), isGeo);
     }
 
 

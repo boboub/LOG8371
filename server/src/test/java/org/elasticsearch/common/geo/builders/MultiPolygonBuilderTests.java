@@ -29,15 +29,15 @@ public class MultiPolygonBuilderTests extends AbstractShapeBuilderTestCase<Multi
 
     @Override
     protected MultiPolygonBuilder createTestShapeBuilder() {
-        return createRandomShape();
+        return createRandomShape(isGeo());
     }
 
     @Override
     protected MultiPolygonBuilder createMutation(MultiPolygonBuilder original) throws IOException {
-        return mutate(original);
+        return mutate(original, isGeo());
     }
 
-    static MultiPolygonBuilder mutate(MultiPolygonBuilder original) throws IOException {
+    static MultiPolygonBuilder mutate(MultiPolygonBuilder original, final boolean isGeo) throws IOException {
         MultiPolygonBuilder mutation;
         if (randomBoolean()) {
             mutation = new MultiPolygonBuilder(original.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
@@ -48,7 +48,7 @@ public class MultiPolygonBuilderTests extends AbstractShapeBuilderTestCase<Multi
             mutation = (MultiPolygonBuilder) copyShape(original);
             if (mutation.polygons().size() > 0) {
                 int polyToChange = randomInt(mutation.polygons().size() - 1);
-                mutation.polygons().set(polyToChange, PolygonBuilderTests.mutatePolygonBuilder(mutation.polygons().get(polyToChange)));
+                mutation.polygons().set(polyToChange, PolygonBuilderTests.mutatePolygonBuilder(mutation.polygons().get(polyToChange), isGeo));
             } else {
                 mutation.polygon((PolygonBuilder) RandomShapeGenerator.createShape(random(), ShapeType.POLYGON));
             }
@@ -56,13 +56,13 @@ public class MultiPolygonBuilderTests extends AbstractShapeBuilderTestCase<Multi
         return mutation;
     }
 
-    static MultiPolygonBuilder createRandomShape() {
+    static MultiPolygonBuilder createRandomShape(final boolean isGeo) {
         MultiPolygonBuilder mpb = new MultiPolygonBuilder(randomFrom(Orientation.values()));
         int polys = randomIntBetween(0, 10);
         for (int i = 0; i < polys; i++) {
             PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(random(), ShapeType.POLYGON);
             mpb.polygon(pgb);
         }
-        return mpb;
+        return mpb.setIsGeo(isGeo);
     }
 }

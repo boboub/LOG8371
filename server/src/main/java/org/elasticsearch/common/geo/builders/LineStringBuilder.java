@@ -49,15 +49,15 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsear
      * @param coordinates the initial list of coordinates
      * @throws IllegalArgumentException if there are less then two coordinates defined
      */
-    public LineStringBuilder(List<Coordinate> coordinates) {
-        super(coordinates);
+    public LineStringBuilder(List<Coordinate> coordinates, boolean isGeo) {
+        super(coordinates, isGeo);
         if (coordinates.size() < 2) {
             throw new IllegalArgumentException("invalid number of points in LineString (found [" + coordinates.size()+ "] - must be >= 2)");
         }
     }
 
-    public LineStringBuilder(CoordinatesBuilder coordinates) {
-        this(coordinates.build());
+    public LineStringBuilder(CoordinatesBuilder coordinates, boolean isGeo) {
+        this(coordinates.build(), isGeo);
     }
 
     /**

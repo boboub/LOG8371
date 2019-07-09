@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeQueryTests extends ESSingleNodeTestCase {
+    protected static boolean isGeo = true;
     private static final String[] PREFIX_TREES = new String[] {
         LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH,
         LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
@@ -121,7 +122,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
+        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45), isGeo);
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(geoIntersectionQuery("location", shape))
@@ -164,7 +165,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        EnvelopeBuilder query = new EnvelopeBuilder(new Coordinate(-122.88, 48.62), new Coordinate(-122.82, 48.54));
+        EnvelopeBuilder query = new EnvelopeBuilder(new Coordinate(-122.88, 48.62), new Coordinate(-122.82, 48.54), isGeo);
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
@@ -184,7 +185,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         createIndex("shapes");
         ensureGreen();
 
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
+        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45), isGeo);
 
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
                 .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
@@ -221,7 +222,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         createIndex("shapes");
         ensureGreen();
 
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
+        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45), isGeo);
 
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
                 .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
@@ -258,7 +259,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
         ensureGreen();
 
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
+        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45), isGeo);
 
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
             .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
@@ -270,13 +271,13 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testReusableBuilder() throws IOException {
         PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
+                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close(), isGeo)
                 .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5)
-                        .coordinate(175, 5).close()));
+                        .coordinate(175, 5).close(), isGeo));
         assertUnmodified(polygon);
 
         LineStringBuilder linestring = new LineStringBuilder(new CoordinatesBuilder()
-                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
+                .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close(), isGeo);
         assertUnmodified(linestring);
     }
 
@@ -375,7 +376,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < randomPoly.numPoints(); ++i) {
             cb.coordinate(randomPoly.getPolyLon(i), randomPoly.getPolyLat(i));
         }
-        gcb.shape(new PolygonBuilder(cb));
+        gcb.shape(new PolygonBuilder(cb, isGeo));
 
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
@@ -410,7 +411,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             gcb = RandomShapeGenerator.createGeometryCollection(random());
         } else {
             // vector strategy does not yet support multipoint queries
-            gcb = new GeometryCollectionBuilder();
+            gcb = new GeometryCollectionBuilder(isGeo);
             int numShapes = RandomNumbers.randomIntBetween(random(), 1, 4);
             for (int i = 0; i < numShapes; ++i) {
                 ShapeBuilder shape;
@@ -429,7 +430,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < randomPoly.numPoints(); ++i) {
             cb.coordinate(randomPoly.getPolyLon(i), randomPoly.getPolyLat(i));
         }
-        gcb.shape(new PolygonBuilder(cb));
+        gcb.shape(new PolygonBuilder(cb, isGeo));
 
         logger.info("Created Random GeometryCollection containing {} shapes using {} tree", gcb.numShapes(),
             usePrefixTrees ? "default" : "quadtree");
@@ -447,7 +448,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         // Create a random geometry collection to query
         GeometryCollectionBuilder queryCollection = RandomShapeGenerator.createGeometryCollection(random());
-        queryCollection.shape(new PolygonBuilder(cb));
+        queryCollection.shape(new PolygonBuilder(cb, isGeo));
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("location", queryCollection);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
@@ -462,7 +463,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         // Create a random geometry collection to index.
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         double[] pt = new double[] {GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()};
-        PointBuilder pb = new PointBuilder(pt[0], pt[1]);
+        PointBuilder pb = new PointBuilder(pt[0], pt[1], isGeo);
         gcb.shape(pb);
         if (randomBoolean()) {
             client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
@@ -494,7 +495,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         // index the mbr of the collection
         EnvelopeBuilder env = new EnvelopeBuilder(new Coordinate(mbr.getMinX(), mbr.getMaxY()),
-                new Coordinate(mbr.getMaxX(), mbr.getMinY()));
+                new Coordinate(mbr.getMaxX(), mbr.getMinY()), isGeo);
         docSource = env.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
         client().prepareIndex("test", "type", "2").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
@@ -562,38 +563,38 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery(
                 "location",
-                new GeometryCollectionBuilder()
+                new GeometryCollectionBuilder(isGeo)
                         .polygon(
                                 new PolygonBuilder(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0)
                                         .coordinate(103.0, 3.0).coordinate(103.0, -1.0)
-                                        .coordinate(99.0, -1.0)))).relation(ShapeRelation.INTERSECTS);
+                                        .coordinate(99.0, -1.0), isGeo))).relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
         filter = QueryBuilders.geoShapeQuery(
                 "location",
-                new GeometryCollectionBuilder().polygon(
+                new GeometryCollectionBuilder(isGeo).polygon(
                         new PolygonBuilder(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0)
                                 .coordinate(193.0, 13.0).coordinate(193.0, -11.0)
-                                .coordinate(199.0, -11.0)))).relation(ShapeRelation.INTERSECTS);
+                                .coordinate(199.0, -11.0), isGeo))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
-        filter = QueryBuilders.geoShapeQuery("location", new GeometryCollectionBuilder()
+        filter = QueryBuilders.geoShapeQuery("location", new GeometryCollectionBuilder(isGeo)
                 .polygon(new PolygonBuilder(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0)
-                        .coordinate(103.0, -1.0).coordinate(99.0, -1.0)))
+                        .coordinate(103.0, -1.0).coordinate(99.0, -1.0), isGeo))
                         .polygon(
                                 new PolygonBuilder(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0)
                                         .coordinate(193.0, 13.0).coordinate(193.0, -11.0)
-                                        .coordinate(199.0, -11.0)))).relation(ShapeRelation.INTERSECTS);
+                                        .coordinate(199.0, -11.0), isGeo))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
         // no shape
-        filter = QueryBuilders.geoShapeQuery("location", new GeometryCollectionBuilder());
+        filter = QueryBuilders.geoShapeQuery("location", new GeometryCollectionBuilder(isGeo));
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
@@ -723,7 +724,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         @SuppressWarnings("unchecked") CheckedSupplier<GeoShapeQueryBuilder, IOException> querySupplier = randomFrom(
             () -> QueryBuilders.geoShapeQuery(
                 "geo",
-                new EnvelopeBuilder(new Coordinate(-21, 44), new Coordinate(-39, 9))
+                new EnvelopeBuilder(new Coordinate(-21, 44), new Coordinate(-39, 9), isGeo)
             ).relation(ShapeRelation.WITHIN),
             () -> {
                 XContentBuilder builder = XContentFactory.jsonBuilder().startObject()

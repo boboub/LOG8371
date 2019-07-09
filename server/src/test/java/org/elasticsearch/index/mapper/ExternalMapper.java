@@ -181,7 +181,7 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        PointBuilder pb = new PointBuilder(-100, 45);
+        PointBuilder pb = new PointBuilder(-100, 45, true);
         if (shapeMapper instanceof GeoShapeFieldMapper) {
             shapeMapper.parse(context.createExternalValueContext(pb.buildGeometry()));
         } else {

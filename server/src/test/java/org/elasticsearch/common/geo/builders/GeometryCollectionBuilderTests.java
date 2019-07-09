@@ -27,33 +27,33 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
 
     @Override
     protected GeometryCollectionBuilder createTestShapeBuilder() {
-        GeometryCollectionBuilder geometryCollection = new GeometryCollectionBuilder();
+        GeometryCollectionBuilder geometryCollection = new GeometryCollectionBuilder(isGeo());
         int shapes = randomIntBetween(0, 8);
         for (int i = 0; i < shapes; i++) {
             switch (randomIntBetween(0, 7)) {
             case 0:
-                geometryCollection.shape(PointBuilderTests.createRandomShape());
+                geometryCollection.shape(PointBuilderTests.createRandomShape(isGeo()));
                 break;
             case 1:
-                geometryCollection.shape(CircleBuilderTests.createRandomShape());
+                geometryCollection.shape(CircleBuilderTests.createRandomShape(isGeo()));
                 break;
             case 2:
-                geometryCollection.shape(EnvelopeBuilderTests.createRandomShape());
+                geometryCollection.shape(EnvelopeBuilderTests.createRandomShape(isGeo()));
                 break;
             case 3:
-                geometryCollection.shape(LineStringBuilderTests.createRandomShape());
+                geometryCollection.shape(LineStringBuilderTests.createRandomShape(isGeo()));
                 break;
             case 4:
-                geometryCollection.shape(MultiLineStringBuilderTests.createRandomShape());
+                geometryCollection.shape(MultiLineStringBuilderTests.createRandomShape(isGeo()));
                 break;
             case 5:
-                geometryCollection.shape(MultiPolygonBuilderTests.createRandomShape());
+                geometryCollection.shape(MultiPolygonBuilderTests.createRandomShape(isGeo()));
                 break;
             case 6:
-                geometryCollection.shape(MultiPointBuilderTests.createRandomShape());
+                geometryCollection.shape(MultiPointBuilderTests.createRandomShape(isGeo()));
                 break;
             case 7:
-                geometryCollection.shape(PolygonBuilderTests.createRandomShape());
+                geometryCollection.shape(PolygonBuilderTests.createRandomShape(isGeo()));
                 break;
             }
         }
@@ -62,38 +62,38 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
 
     @Override
     protected GeometryCollectionBuilder createMutation(GeometryCollectionBuilder original) throws IOException {
-        return mutate(original);
+        return mutate(original, isGeo());
     }
 
-    static GeometryCollectionBuilder mutate(GeometryCollectionBuilder original) throws IOException {
+    static GeometryCollectionBuilder mutate(GeometryCollectionBuilder original, final boolean isGeo) throws IOException {
         GeometryCollectionBuilder mutation = copyShape(original);
         if (mutation.shapes.size() > 0) {
             int shapePosition = randomIntBetween(0, mutation.shapes.size() - 1);
             ShapeBuilder<?, ?, ?> shapeToChange = mutation.shapes.get(shapePosition);
             switch (shapeToChange.type()) {
             case POINT:
-                shapeToChange = PointBuilderTests.mutate((PointBuilder) shapeToChange);
+                shapeToChange = PointBuilderTests.mutate((PointBuilder) shapeToChange, isGeo);
                 break;
             case CIRCLE:
-                shapeToChange = CircleBuilderTests.mutate((CircleBuilder) shapeToChange);
+                shapeToChange = CircleBuilderTests.mutate((CircleBuilder) shapeToChange, isGeo);
                 break;
             case ENVELOPE:
-                shapeToChange = EnvelopeBuilderTests.mutate((EnvelopeBuilder) shapeToChange);
+                shapeToChange = EnvelopeBuilderTests.mutate((EnvelopeBuilder) shapeToChange, isGeo);
                 break;
             case LINESTRING:
-                shapeToChange = LineStringBuilderTests.mutate((LineStringBuilder) shapeToChange);
+                shapeToChange = LineStringBuilderTests.mutate((LineStringBuilder) shapeToChange, isGeo);
                 break;
             case MULTILINESTRING:
-                shapeToChange = MultiLineStringBuilderTests.mutate((MultiLineStringBuilder) shapeToChange);
+                shapeToChange = MultiLineStringBuilderTests.mutate((MultiLineStringBuilder) shapeToChange, isGeo);
                 break;
             case MULTIPOLYGON:
-                shapeToChange = MultiPolygonBuilderTests.mutate((MultiPolygonBuilder) shapeToChange);
+                shapeToChange = MultiPolygonBuilderTests.mutate((MultiPolygonBuilder) shapeToChange, isGeo);
                 break;
             case MULTIPOINT:
-                shapeToChange = MultiPointBuilderTests.mutate((MultiPointBuilder) shapeToChange);
+                shapeToChange = MultiPointBuilderTests.mutate((MultiPointBuilder) shapeToChange, isGeo);
                 break;
             case POLYGON:
-                shapeToChange = PolygonBuilderTests.mutate((PolygonBuilder) shapeToChange);
+                shapeToChange = PolygonBuilderTests.mutate((PolygonBuilder) shapeToChange, isGeo);
                 break;
             case GEOMETRYCOLLECTION:
                 throw new UnsupportedOperationException("GeometryCollection should not be nested inside each other");

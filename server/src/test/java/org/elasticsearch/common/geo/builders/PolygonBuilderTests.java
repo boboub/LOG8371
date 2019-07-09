@@ -33,22 +33,22 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
 
     @Override
     protected PolygonBuilder createTestShapeBuilder() {
-        return createRandomShape();
+        return createRandomShape(isGeo());
     }
 
     @Override
     protected PolygonBuilder createMutation(PolygonBuilder original) throws IOException {
-        return mutate(original);
+        return mutate(original, isGeo());
     }
 
-    static PolygonBuilder mutate(PolygonBuilder original) throws IOException {
+    static PolygonBuilder mutate(PolygonBuilder original, final boolean isGeo) throws IOException {
         PolygonBuilder mutation = (PolygonBuilder) copyShape(original);
-        return mutatePolygonBuilder(mutation);
+        return mutatePolygonBuilder(mutation, isGeo);
     }
 
-    static PolygonBuilder mutatePolygonBuilder(PolygonBuilder pb) {
+    static PolygonBuilder mutatePolygonBuilder(PolygonBuilder pb, final boolean isGeo) {
         if (randomBoolean()) {
-            pb = polyWithOposingOrientation(pb);
+            pb = polyWithOposingOrientation(pb, isGeo);
         } else {
             // change either point in shell or in random hole
             LineStringBuilder lineToChange;
@@ -79,19 +79,19 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
      * Takes an input polygon and returns an identical one, only with opposing orientation setting.
      * This is done so we don't have to expose a setter for orientation in the actual class
      */
-    private static PolygonBuilder polyWithOposingOrientation(PolygonBuilder pb) {
+    private static PolygonBuilder polyWithOposingOrientation(PolygonBuilder pb, final boolean isGeo) {
         PolygonBuilder mutation = new PolygonBuilder(pb.shell(),
-                pb.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
+                pb.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT, isGeo);
         for (LineStringBuilder hole : pb.holes()) {
             mutation.hole(hole);
         }
         return mutation;
     }
 
-    static PolygonBuilder createRandomShape() {
+    static PolygonBuilder createRandomShape(final boolean isGeo) {
         PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(random(), ShapeType.POLYGON);
         if (randomBoolean()) {
-            pgb = polyWithOposingOrientation(pgb);
+            pgb = polyWithOposingOrientation(pgb, isGeo);
         }
         return pgb;
     }
@@ -99,35 +99,39 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
     public void testCoerceShell() {
         try{
             new PolygonBuilder(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0)
-                    .coordinate(1.0, 0.0).coordinate(1.0, 1.0).build()), Orientation.RIGHT);
+                    .coordinate(1.0, 0.0).coordinate(1.0, 1.0).build(), isGeo()), Orientation.RIGHT, isGeo());
             fail("should raise validation exception");
         } catch (IllegalArgumentException e) {
             assertEquals("invalid number of points in LinearRing (found [3] - must be >= 4)", e.getMessage());
         }
 
         PolygonBuilder pb = new PolygonBuilder(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0)
-                .coordinate(1.0, 0.0).coordinate(1.0, 1.0).build()), Orientation.RIGHT, true);
+                .coordinate(1.0, 0.0).coordinate(1.0, 1.0).build(), isGeo()), Orientation.RIGHT, true);
         assertThat("Shell should have been closed via coerce", pb.shell().coordinates(false).length, equalTo(4));
     }
 
     public void testCoerceHole() {
         PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0)
-                .coordinate(2.0, 0.0).coordinate(2.0, 2.0).coordinate(0.0, 0.0));
+                .coordinate(2.0, 0.0).coordinate(2.0, 2.0).coordinate(0.0, 0.0), isGeo());
         try{
-            pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0,0.0).coordinate(1.0,0.0).coordinate(1.0,1.0).build()));
+            pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0,0.0).coordinate(1.0,0.0)
+                .coordinate(1.0,1.0).build(), isGeo()));
             fail("should raise validation exception");
         } catch (IllegalArgumentException e) {
             assertEquals("invalid number of points in LinearRing (found [3] - must be >= 4)", e.getMessage());
         }
 
-        pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0,0.0).coordinate(1.0,0.0).coordinate(1.0,1.0).build()), true);
+        pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0,0.0).coordinate(1.0,0.0)
+            .coordinate(1.0,1.0).build(), isGeo()), true);
         assertThat("hole should have been closed via coerce", pb.holes().get(0).coordinates(false).length, equalTo(4));
     }
 
     public void testHoleThatIsSouthOfPolygon() {
         InvalidShapeException e = expectThrows(InvalidShapeException.class, () -> {
-            PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(4, 3).coordinate(3, 2).coordinate(3, 3).close());
-            pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(4, 2).coordinate(3, 1).coordinate(4, 1).close()));
+            PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(4, 3).coordinate(3, 2)
+                .coordinate(3, 3).close(), isGeo());
+            pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(4, 2).coordinate(3, 1)
+                .coordinate(4, 1).close(), isGeo()));
             pb.buildS4J();
         });
 
@@ -136,8 +140,10 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
 
     public void testHoleThatIsNorthOfPolygon() {
         InvalidShapeException e = expectThrows(InvalidShapeException.class, () -> {
-            PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(3, 2).coordinate(4, 1).coordinate(3, 1).close());
-            pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(3, 3).coordinate(4, 2).coordinate(4, 3).close()));
+            PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(3, 2)
+                .coordinate(4, 1).coordinate(3, 1).close(), isGeo());
+            pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(3, 3).coordinate(4, 2)
+                .coordinate(4, 3).close(), isGeo()));
             pb.buildS4J();
         });
 
@@ -151,13 +157,15 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
         // that self-intersects.
 
         PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
-            .coordinate(10, -20).coordinate(100, 0).coordinate(-100, 0).coordinate(20, -45).coordinate(40, -60).close());
+            .coordinate(10, -20).coordinate(100, 0).coordinate(-100, 0)
+            .coordinate(20, -45).coordinate(40, -60).close(), isGeo());
         pb.buildS4J(); // Should not throw an exception
     }
 
     public void testPolygonWithUndefinedOrientationDueToCollinearPoints() {
         PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
-            .coordinate(0.0, 0.0).coordinate(1.0, 1.0).coordinate(-1.0, -1.0).close());
+            .coordinate(0.0, 0.0).coordinate(1.0, 1.0)
+            .coordinate(-1.0, -1.0).close(), isGeo());
         InvalidShapeException e = expectThrows(InvalidShapeException.class, pb::buildS4J);
         assertEquals("Cannot determine orientation: edges adjacent to (-1.0,-1.0) coincide", e.getMessage());
     }

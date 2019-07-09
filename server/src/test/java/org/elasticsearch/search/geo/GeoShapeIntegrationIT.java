@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoShapeIntegrationIT extends ESIntegTestCase {
-
+    protected boolean isGeo = true;
     /**
      * Test that orientation parameter correctly persists across cluster restart
      */
@@ -193,49 +193,49 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("vector", "doc", "0").setSource(source, XContentType.JSON));
 
         SearchResponse searchResponse = client().prepareSearch("quad").setQuery(
-            geoShapeQuery("shape", new PointBuilder(-179.75, 1))
+            geoShapeQuery("shape", new PointBuilder(-179.75, 1, isGeo))
         ).get();
 
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch("quad").setQuery(
-            geoShapeQuery("shape", new PointBuilder(90, 1))
+            geoShapeQuery("shape", new PointBuilder(90, 1, isGeo))
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         searchResponse = client().prepareSearch("quad").setQuery(
-            geoShapeQuery("shape", new PointBuilder(-180, 1))
+            geoShapeQuery("shape", new PointBuilder(-180, 1, isGeo))
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         searchResponse = client().prepareSearch("quad").setQuery(
-            geoShapeQuery("shape", new PointBuilder(180, 1))
+            geoShapeQuery("shape", new PointBuilder(180, 1, isGeo))
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
-            geoShapeQuery("shape", new PointBuilder(90, 1))
+            geoShapeQuery("shape", new PointBuilder(90, 1, isGeo))
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
-            geoShapeQuery("shape", new PointBuilder(-179.75, 1))
+            geoShapeQuery("shape", new PointBuilder(-179.75, 1, isGeo))
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
-            geoShapeQuery("shape", new PointBuilder(-180, 1))
+            geoShapeQuery("shape", new PointBuilder(-180, 1, isGeo))
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
-            geoShapeQuery("shape", new PointBuilder(180, 1))
+            geoShapeQuery("shape", new PointBuilder(180, 1, isGeo))
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
