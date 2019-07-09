@@ -12,14 +12,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.geo.mapper.GeometryFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-public class Geo extends Plugin implements ActionPlugin {
+import static java.util.Collections.emptyMap;
+
+public class Geo extends Plugin implements MapperPlugin, ActionPlugin {
     protected final boolean enabled;
 
     public Geo(Settings settings) {
@@ -36,5 +43,15 @@ public class Geo extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Collections.singletonList(
             new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.GEO, GeoFeatureSet.UsageTransportAction.class));
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        if (enabled == false) {
+            return emptyMap();
+        }
+        Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
+        mappers.put(GeometryFieldMapper.CONTENT_TYPE, new GeometryFieldMapper.TypeParser());
+        return Collections.unmodifiableMap(mappers);
     }
 }
