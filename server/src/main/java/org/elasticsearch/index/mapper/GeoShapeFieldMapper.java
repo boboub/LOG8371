@@ -25,6 +25,15 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLatLonShapeDVIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -51,7 +60,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
     public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeFieldMapper> {
         public Builder(String name) {
-            super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
+            super(name, new GeoShapeFieldType(), new GeoShapeFieldType());
         }
 
         @Override
@@ -62,16 +71,21 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
 
         @Override
+        public boolean defaultDocValues(Version indexCreated) {
+            return Version.V_7_5_0.onOrBefore(indexCreated);
+        }
+
+        @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
 
-            GeoShapeFieldType fieldType = (GeoShapeFieldType)fieldType();
+            GeoShapeFieldType fieldType = (GeoShapeFieldType) fieldType();
             boolean orientation = fieldType.orientation == ShapeBuilder.Orientation.RIGHT;
 
             GeometryParser geometryParser = new GeometryParser(orientation, coerce(context).value(), ignoreZValue().value());
 
             fieldType.setGeometryIndexer(new GeoShapeIndexer(orientation, fieldType.name()));
-            fieldType.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
+            fieldType.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
             fieldType.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
         }
     }
@@ -83,6 +97,26 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
             super(ref);
+        }
+
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new AbstractLatLonShapeDVIndexFieldData.Builder();
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
+                + name() + "]");
         }
 
         @Override
@@ -114,3 +148,4 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         return CONTENT_TYPE;
     }
 }
+

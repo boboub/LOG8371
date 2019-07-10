@@ -20,9 +20,9 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.ShapeType;
 
 import java.io.IOException;
 

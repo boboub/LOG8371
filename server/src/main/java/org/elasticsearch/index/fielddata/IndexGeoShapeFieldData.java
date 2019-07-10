@@ -16,17 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.geometry.ShapeType;
+package org.elasticsearch.index.fielddata;
+
 
 /**
- * Shape writer for use in doc-values
+ * Specialization of {@link IndexFieldData} for geo points.
  */
-public abstract class ShapeTreeWriter implements Writeable {
-
-    public abstract Extent getExtent();
-
-    public abstract ShapeType getShapeType();
+public interface IndexGeoShapeFieldData extends IndexFieldData<AtomicGeoFieldData> {
 }

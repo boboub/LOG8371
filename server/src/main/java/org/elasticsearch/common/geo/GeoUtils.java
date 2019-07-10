@@ -32,8 +32,7 @@ import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
@@ -607,10 +606,11 @@ public class GeoUtils {
      */
     public static SortedNumericDoubleValues distanceValues(final GeoDistance distance,
                                                            final DistanceUnit unit,
-                                                           final MultiGeoPointValues geoPointValues,
+                                                           final MultiGeoValues geoPointValues,
                                                            final GeoPoint... fromPoints) {
-        final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
+        final MultiGeoValues singleValues = FieldData.unwrapSingleton(geoPointValues);
         if (singleValues != null && fromPoints.length == 1) {
+            assert singleValues.docValueCount() == 1;
             return FieldData.singleton(new NumericDoubleValues() {
 
                 @Override
@@ -621,7 +621,7 @@ public class GeoUtils {
                 @Override
                 public double doubleValue() throws IOException {
                     final GeoPoint from = fromPoints[0];
-                    final GeoPoint to = singleValues.geoPointValue();
+                    final MultiGeoValues.GeoValue to = singleValues.nextValue();
                     return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
                 }
 
@@ -634,7 +634,7 @@ public class GeoUtils {
                         resize(geoPointValues.docValueCount() * fromPoints.length);
                         int v = 0;
                         for (int i = 0; i < geoPointValues.docValueCount(); ++i) {
-                            final GeoPoint point = geoPointValues.nextValue();
+                            final MultiGeoValues.GeoValue point = geoPointValues.nextValue();
                             for (GeoPoint from : fromPoints) {
                                 values[v] = distance.calculate(from.lat(), from.lon(), point.lat(), point.lon(), unit);
                                 v++;
