@@ -251,7 +251,7 @@ public class GeometryFieldMapper extends BaseGeoShapeFieldMapper {
 
         @Override
         public Void visit(Point point) {
-            indexFields(context, XYShape.createIndexableFields(name(), point.getLon(), point.getLat()));
+            indexFields(context, XYShape.createIndexableFields(name(), (float)point.getLon(), (float)point.getLat()));
             return null;
         }
 
