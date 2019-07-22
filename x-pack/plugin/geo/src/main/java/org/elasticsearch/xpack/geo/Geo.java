@@ -9,8 +9,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.geo.index.query.GeometryQueryBuilder;
 import org.elasticsearch.xpack.geo.mapper.GeometryFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -24,8 +26,9 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 
-public class Geo extends Plugin implements MapperPlugin, ActionPlugin {
+public class Geo extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
     protected final boolean enabled;
 
     public Geo(Settings settings) {
@@ -47,5 +50,10 @@ public class Geo extends Plugin implements MapperPlugin, ActionPlugin {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(GeometryFieldMapper.CONTENT_TYPE, new GeometryFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(GeometryQueryBuilder.NAME, GeometryQueryBuilder::new, GeometryQueryBuilder::fromXContent));
     }
 }

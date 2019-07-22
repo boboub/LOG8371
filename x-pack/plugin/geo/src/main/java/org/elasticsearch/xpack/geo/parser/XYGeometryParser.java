@@ -11,6 +11,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.GeoJsonParser;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.geo.mapper.GeometryFieldMapper;
 
@@ -50,5 +51,16 @@ public interface XYGeometryParser extends ShapeParser {
             ? GeometryFieldMapper.Defaults.IGNORE_Z_VALUE
             : fieldMapper.ignoreZValue();
         return GeoWKTParser.parseExpectedType(parser, null, ignoreZValue.value(), coerce.value(), false);
+    }
+
+    /**
+     * Create a new {@link ShapeBuilder} from {@link XContent}
+     * @param parser parser to read the GeoShape from
+     * @return {@link ShapeBuilder} read from the parser or null
+     *          if the parsers current token has been <code>null</code>
+     * @throws IOException if the input could not be read
+     */
+    static ShapeBuilder parse(XContentParser parser) throws IOException {
+        return parse(parser, null);
     }
 }

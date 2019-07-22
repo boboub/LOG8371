@@ -269,29 +269,6 @@ public class GeometryFieldMapper extends BaseGeoShapeFieldMapper {
             return null;
         }
 
-        public XYPolygon toLucenePolygon(org.elasticsearch.geo.geometry.Polygon polygon) {
-            XYPolygon[] holes = new XYPolygon[polygon.getNumberOfHoles()];
-            LinearRing ring;
-            for(int i = 0; i<holes.length; i++) {
-                ring = polygon.getHole(i);
-                float[] x = new float[ring.length()];
-                float[] y = new float[x.length];
-                for (int j = 0; j < x.length; ++j) {
-                    x[j] = (float)ring.getLon(j);
-                    y[j] = (float)ring.getLat(j);
-                }
-                holes[i] = new XYPolygon(x, y);
-            }
-            ring = polygon.getPolygon();
-            float[] x = new float[ring.length()];
-            float[] y = new float[x.length];
-            for (int i = 0; i < x.length; ++i) {
-                x[i] = (float)ring.getLon(i);
-                y[i] = (float)ring.getLat(i);
-            }
-            return new XYPolygon(x, y, holes);
-        }
-
         private void indexFields(ParseContext context, Field[] fields) {
             ArrayList<IndexableField> flist = new ArrayList<>(Arrays.asList(fields));
             createFieldNamesField(context, flist);
@@ -299,5 +276,28 @@ public class GeometryFieldMapper extends BaseGeoShapeFieldMapper {
                 context.doc().add(f);
             }
         }
+    }
+
+    public static XYPolygon toLucenePolygon(org.elasticsearch.geo.geometry.Polygon polygon) {
+        XYPolygon[] holes = new XYPolygon[polygon.getNumberOfHoles()];
+        LinearRing ring;
+        for(int i = 0; i<holes.length; i++) {
+            ring = polygon.getHole(i);
+            float[] x = new float[ring.length()];
+            float[] y = new float[x.length];
+            for (int j = 0; j < x.length; ++j) {
+                x[j] = (float)ring.getLon(j);
+                y[j] = (float)ring.getLat(j);
+            }
+            holes[i] = new XYPolygon(x, y);
+        }
+        ring = polygon.getPolygon();
+        float[] x = new float[ring.length()];
+        float[] y = new float[x.length];
+        for (int i = 0; i < x.length; ++i) {
+            x[i] = (float)ring.getLon(i);
+            y[i] = (float)ring.getLat(i);
+        }
+        return new XYPolygon(x, y, holes);
     }
 }

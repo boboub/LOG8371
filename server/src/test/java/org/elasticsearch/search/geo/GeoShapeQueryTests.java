@@ -81,7 +81,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape");
-        if (randomBoolean()) {
+        if (true || randomBoolean()) {
             xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
             .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
         }

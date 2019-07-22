@@ -59,8 +59,21 @@ public class GeometryIntegrationIT extends ESSingleNodeTestCase {
     private DocumentMapper mapper;
 
     private static String INDEX = "test";
+    private static String IGNORE_MALFORMED_INDEX = INDEX + "_ignore_malformed";
     private static String FIELD_TYPE = "geometry";
     private static String FIELD = "shape";
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        // create test index
+        assertAcked(client().admin().indices().prepareCreate(INDEX)
+            .addMapping(FIELD_TYPE, FIELD, "type=geometry").get());
+        // create index that ignores malformed geometry
+        assertAcked(client().admin().indices().prepareCreate(IGNORE_MALFORMED_INDEX)
+            .addMapping(FIELD_TYPE, FIELD, "type=geometry,ignore_malformed=true").get());
+        ensureGreen();
+    }
 
     @Before
     public void setUpMapper() throws Exception {
@@ -165,9 +178,9 @@ public class GeometryIntegrationIT extends ESSingleNodeTestCase {
      */
     public void testIgnoreMalformed() throws Exception {
         // create index
-        assertAcked(client().admin().indices().prepareCreate(INDEX)
-            .addMapping(FIELD_TYPE, FIELD, "type=geometry,ignore_malformed=true").get());
-        ensureGreen();
+//        assertAcked(client().admin().indices().prepareCreate(INDEX)
+//            .addMapping(FIELD_TYPE, FIELD, "type=geometry,ignore_malformed=true").get());
+//        ensureGreen();
 
         double startX = XShapeTestUtil.nextDouble();
         double startY = XShapeTestUtil.nextDouble();
@@ -188,11 +201,11 @@ public class GeometryIntegrationIT extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        client().prepareIndex(INDEX, FIELD_TYPE).setSource(polygonGeoJson).get();
-        client().admin().indices().prepareRefresh(INDEX).get();
+        client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE).setSource(polygonGeoJson).get();
+        client().admin().indices().prepareRefresh(IGNORE_MALFORMED_INDEX).get();
 
         //SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertHitCount(client().prepareSearch(INDEX).setQuery(matchAllQuery()).get(), 1);
+        assertHitCount(client().prepareSearch(IGNORE_MALFORMED_INDEX).setQuery(matchAllQuery()).get(), 1);
 
 //        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -201,22 +214,6 @@ public class GeometryIntegrationIT extends ESSingleNodeTestCase {
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() throws Exception {
-        String mapping = "{\n" +
-            "    \"_routing\": {\n" +
-            "      \"required\": true\n" +
-            "    },\n" +
-            "    \"properties\": {\n" +
-            "      \"shape\": {\n" +
-            "        \"type\": \"geo_shape\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }";
-
-
-        // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
-        ensureGreen();
-
         String source = "{\n" +
             "    \"shape\" : {\n" +
             "        \"type\" : \"bbox\",\n" +
@@ -224,10 +221,12 @@ public class GeometryIntegrationIT extends ESSingleNodeTestCase {
             "    }\n" +
             "}";
 
-        client().prepareIndex("test", "doc", "0").setSource(source, XContentType.JSON).setRouting("ABC");
+        client().prepareIndex(INDEX, FIELD_TYPE, "0").setSource(source, XContentType.JSON).setRouting("ABC").get();
+        client().admin().indices().prepareRefresh(INDEX).get();
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(
-            geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC")
+
+        SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(
+            geoShapeQuery(FIELD_TYPE, "0").indexedShapeIndex(INDEX).indexedShapeRouting("ABC")
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
