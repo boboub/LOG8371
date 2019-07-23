@@ -29,6 +29,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -183,7 +184,7 @@ public class ExternalMapper extends FieldMapper {
         // Let's add a Dummy Shape
         PointBuilder pb = new PointBuilder(-100, 45, true);
         if (shapeMapper instanceof GeoShapeFieldMapper) {
-            shapeMapper.parse(context.createExternalValueContext(pb.buildGeometry()));
+            shapeMapper.parse(context.createExternalValueContext(new Point(45, -100)));
         } else {
             shapeMapper.parse(context.createExternalValueContext(pb.buildS4J()));
         }
