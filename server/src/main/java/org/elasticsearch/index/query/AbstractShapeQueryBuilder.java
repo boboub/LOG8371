@@ -363,7 +363,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "failed to find geo_shape field [" + fieldName + "]");
+                throw new QueryShardException(context, "failed to find " + queryType() + " field [" + fieldName + "]");
             }
         } else if (isValidContentType(fieldType.typeName()) == false) {
             throw new QueryShardException(context,
