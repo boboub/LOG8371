@@ -43,8 +43,6 @@ public final class XPackField {
     public static final String VECTORS = "vectors";
     /** Name constant for the voting-only-node feature. */
     public static final String VOTING_ONLY = "voting_only";
-    /** Name constant for the geo feature. */
-    public static final String GEO = "geo";
     /** Name constant for the frozen index feature. */
     public static final String FROZEN_INDICES = "frozen_indices";
     /** Name constant for spatial features. */

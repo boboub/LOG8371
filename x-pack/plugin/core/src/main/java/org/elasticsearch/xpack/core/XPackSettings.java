@@ -122,9 +122,6 @@ public class XPackSettings {
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling geo. Defaults to true. */
-    public static final Setting<Boolean> GEO_ENABLED = Setting.boolSetting("xpack.geo.enabled", true, Setting.Property.NodeScope);
-
-    /** Setting for enabling or disabling geo. Defaults to true. */
     public static final Setting<Boolean> SPATIAL_ENABLED = Setting.boolSetting("xpack.spatial.enabled", true, Setting.Property.NodeScope);
 
 
@@ -220,7 +217,7 @@ public class XPackSettings {
         settings.add(DATA_FRAME_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
-        settings.add(GEO_ENABLED);
+        settings.add(SPATIAL_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 
