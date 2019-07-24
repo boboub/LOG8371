@@ -22,40 +22,26 @@ import org.apache.lucene.geo.XShapeTestUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.query.GeometryQueryBuilder;
+import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.junit.Before;
 
 import java.util.Collection;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
-public class GeometryIntegrationIT extends ESSingleNodeTestCase {
+public class ShapeIntegrationIT extends ESSingleNodeTestCase {
     protected boolean isGeo = false;
     private DocumentMapper mapper;
 
@@ -69,10 +55,10 @@ public class GeometryIntegrationIT extends ESSingleNodeTestCase {
         super.setUp();
         // create test index
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-            .addMapping(FIELD_TYPE, FIELD, "type=geometry").get());
+            .addMapping(FIELD_TYPE, FIELD, "type=shape").get());
         // create index that ignores malformed geometry
         assertAcked(client().admin().indices().prepareCreate(IGNORE_MALFORMED_INDEX)
-            .addMapping(FIELD_TYPE, FIELD, "type=geometry,ignore_malformed=true").get());
+            .addMapping(FIELD_TYPE, FIELD, "type=shape,ignore_malformed=true").get());
         ensureGreen();
     }
 
@@ -223,7 +209,7 @@ public class GeometryIntegrationIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh(INDEX).get();
 
         SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(
-            new GeometryQueryBuilder(FIELD, "0").indexedShapeIndex(INDEX).indexedShapeRouting("ABC")
+            new ShapeQueryBuilder(FIELD, "0").indexedShapeIndex(INDEX).indexedShapeRouting("ABC")
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));

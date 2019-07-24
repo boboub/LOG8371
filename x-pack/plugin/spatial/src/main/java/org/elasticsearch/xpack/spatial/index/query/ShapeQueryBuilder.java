@@ -12,6 +12,7 @@ import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoShapeType;
@@ -32,12 +33,12 @@ import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.AbstractShapeQueryBuilder;
+import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.xpack.spatial.index.mapper.GeometryFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.parser.XYGeometryParser;
 
 import java.io.IOException;
@@ -46,9 +47,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.spatial.index.mapper.GeometryFieldMapper.toLucenePolygon;
+import static org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper.toLucenePolygon;
 
-public class GeometryQueryBuilder extends AbstractShapeQueryBuilder<GeometryQueryBuilder> {
+public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBuilder> {
     public static final String NAME = "geometry";
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
@@ -66,12 +67,26 @@ public class GeometryQueryBuilder extends AbstractShapeQueryBuilder<GeometryQuer
      *            Name of the field that will be queried
      * @param shape
      *            Shape used in the Query
+     * @deprecated use {@link #ShapeQueryBuilder(String, Geometry)} instead
      */
-    protected GeometryQueryBuilder(String fieldName, ShapeBuilder shape) {
+    protected ShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
         super(fieldName, shape);
     }
 
-    protected GeometryQueryBuilder(String fieldName, Supplier<ShapeBuilder> shapeSupplier, String indexedShapeId, @Nullable String indexedShapeType) {
+    /**
+     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * field name using the given Shape
+     *
+     * @param fieldName
+     *            Name of the field that will be queried
+     * @param shape
+     *            Shape used in the Query
+     */
+    protected ShapeQueryBuilder(String fieldName, Geometry shape) {
+        super(fieldName, shape);
+    }
+
+    protected ShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId, @Nullable String indexedShapeType) {
         super(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
     }
 
@@ -84,16 +99,16 @@ public class GeometryQueryBuilder extends AbstractShapeQueryBuilder<GeometryQuer
      * @param indexedShapeId
      *            ID of the indexed Shape that will be used in the Query
      */
-    public GeometryQueryBuilder(String fieldName, String indexedShapeId) {
+    public ShapeQueryBuilder(String fieldName, String indexedShapeId) {
         super(fieldName, indexedShapeId);
     }
 
     @Deprecated
-    protected GeometryQueryBuilder(String fieldName, String indexedShapeId, String indexedShapeType) {
-        super(fieldName, (ShapeBuilder) null, indexedShapeId, indexedShapeType);
+    protected ShapeQueryBuilder(String fieldName, String indexedShapeId, String indexedShapeType) {
+        super(fieldName, (Geometry) null, indexedShapeId, indexedShapeType);
     }
 
-    public GeometryQueryBuilder(StreamInput in) throws IOException {
+    public ShapeQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -103,50 +118,54 @@ public class GeometryQueryBuilder extends AbstractShapeQueryBuilder<GeometryQuer
     }
 
     @Override
-    protected GeometryQueryBuilder newSpatialQueryBuilder(String fieldName, ShapeBuilder shape) {
-        return new GeometryQueryBuilder(fieldName, shape);
+    protected ShapeQueryBuilder newShapeQueryBuilder(String fieldName, Geometry shape) {
+        return new ShapeQueryBuilder(fieldName, shape);
     }
 
     @Override
-    protected GeometryQueryBuilder newSpatialQueryBuilder(String fieldName, Supplier<ShapeBuilder> shapeSupplier, String indexedShapeId, String indexedShapeType) {
-        return new GeometryQueryBuilder(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
+    protected ShapeQueryBuilder newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId, String indexedShapeType) {
+        return new ShapeQueryBuilder(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
     }
 
     @Override
-    public String queryType() {
-        return NAME;
+    public String queryFieldType() {
+        return ShapeFieldMapper.CONTENT_TYPE;
     }
 
     @Override
-    protected List newValidContentTypes() {
-        return Arrays.asList(GeometryFieldMapper.CONTENT_TYPE);
+    protected List validContentTypes() {
+        return Arrays.asList(ShapeFieldMapper.CONTENT_TYPE);
     }
 
     @Override
-    public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType, ShapeBuilder shapeToQuery) {
+    public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
         // CONTAINS queries are not yet supported by VECTOR strategy
         if (relation == ShapeRelation.CONTAINS) {
             throw new QueryShardException(context,
                 ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]");
         }
 
+        if (shape == null) {
+            return new MatchNoDocsQuery();
+        }
+
         // wrap geometry Query as a ConstantScoreQuery
-        return new ConstantScoreQuery(shapeToQuery.buildGeometry().visit(new ShapeVisitor(context)));
+        return new ConstantScoreQuery(shape.visit(new ShapeVisitor(context)));
     }
 
     @Override
-    public void doGeoXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException {
         // noop
     }
 
     @Override
-    protected GeometryQueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        return (GeometryQueryBuilder)super.doRewrite(queryRewriteContext);
+    protected ShapeQueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        return (ShapeQueryBuilder)super.doRewrite(queryRewriteContext);
     }
 
     @Override
-    protected boolean doEquals(GeometryQueryBuilder other) {
-        return super.doEquals((AbstractShapeQueryBuilder)other);
+    protected boolean doEquals(ShapeQueryBuilder other) {
+        return super.doEquals((AbstractGeometryQueryBuilder)other);
     }
 
     @Override
@@ -248,7 +267,7 @@ public class GeometryQueryBuilder extends AbstractShapeQueryBuilder<GeometryQuer
         }
     }
 
-    private static class ParsedGeometryQueryBuilder extends ParsedQueryBuilder {
+    private static class ParsedShapeQueryParams extends ParsedGeometryQueryParams {
         @Override
         protected boolean parseXContentField(XContentParser parser) throws IOException {
             if (SHAPE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
@@ -259,19 +278,20 @@ public class GeometryQueryBuilder extends AbstractShapeQueryBuilder<GeometryQuer
         }
     }
 
-    public static GeometryQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        ParsedQueryBuilder pgsqb = AbstractShapeQueryBuilder.parsedQBFromXContent(parser, new ParsedGeometryQueryBuilder());
+    public static ShapeQueryBuilder fromXContent(XContentParser parser) throws IOException {
+        ParsedShapeQueryParams pgsqb = (ParsedShapeQueryParams)AbstractGeometryQueryBuilder.parsedParamsFromXContent(parser,
+            new ParsedShapeQueryParams());
 
-        GeometryQueryBuilder builder;
+        ShapeQueryBuilder builder;
         if (pgsqb.type != null) {
             deprecationLogger.deprecatedAndMaybeLog(
                 "geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (pgsqb.shape != null) {
-            builder = new GeometryQueryBuilder(pgsqb.fieldName, pgsqb.shape);
+            builder = new ShapeQueryBuilder(pgsqb.fieldName, pgsqb.shape);
         } else {
-            builder = new GeometryQueryBuilder(pgsqb.fieldName, pgsqb.id, pgsqb.type);
+            builder = new ShapeQueryBuilder(pgsqb.fieldName, pgsqb.id, pgsqb.type);
         }
         if (pgsqb.index != null) {
             builder.indexedShapeIndex(pgsqb.index);

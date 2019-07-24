@@ -13,12 +13,12 @@ import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.spatial.index.mapper.GeometryFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.io.IOException;
 
 public interface XYGeometryParser extends ShapeParser {
-    static ShapeBuilder parse(XContentParser parser, GeometryFieldMapper fieldMapper) throws IOException {
+    static ShapeBuilder parse(XContentParser parser, ShapeFieldMapper fieldMapper) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -29,26 +29,26 @@ public interface XYGeometryParser extends ShapeParser {
         throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
     }
 
-    static ShapeBuilder parseGeoJson(XContentParser parser, GeometryFieldMapper fieldMapper) throws IOException {
+    static ShapeBuilder parseGeoJson(XContentParser parser, ShapeFieldMapper fieldMapper) throws IOException {
         ShapeBuilder.Orientation orientation = (fieldMapper == null)
-            ? GeometryFieldMapper.Defaults.ORIENTATION.value()
+            ? ShapeFieldMapper.Defaults.ORIENTATION.value()
             : fieldMapper.orientation();
         Explicit<Boolean> coerce = (fieldMapper == null)
-            ? GeometryFieldMapper.Defaults.COERCE
+            ? ShapeFieldMapper.Defaults.COERCE
             : fieldMapper.coerce();
         Explicit<Boolean> ignoreZValue = (fieldMapper == null)
-            ? GeometryFieldMapper.Defaults.IGNORE_Z_VALUE
+            ? ShapeFieldMapper.Defaults.IGNORE_Z_VALUE
             : fieldMapper.ignoreZValue();
 
         return GeoJsonParser.parse(parser, orientation, coerce.value(), ignoreZValue.value(), false);
     }
 
-    static ShapeBuilder parseWKT(XContentParser parser, GeometryFieldMapper fieldMapper) throws IOException {
+    static ShapeBuilder parseWKT(XContentParser parser, ShapeFieldMapper fieldMapper) throws IOException {
         Explicit<Boolean> coerce = (fieldMapper == null)
-            ? GeometryFieldMapper.Defaults.COERCE
+            ? ShapeFieldMapper.Defaults.COERCE
             : fieldMapper.coerce();
         Explicit<Boolean> ignoreZValue = (fieldMapper == null)
-            ? GeometryFieldMapper.Defaults.IGNORE_Z_VALUE
+            ? ShapeFieldMapper.Defaults.IGNORE_Z_VALUE
             : fieldMapper.ignoreZValue();
         return GeoWKTParser.parseExpectedType(parser, null, ignoreZValue.value(), coerce.value(), false);
     }

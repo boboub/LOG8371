@@ -16,8 +16,8 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.spatial.index.mapper.GeometryFieldMapper;
-import org.elasticsearch.xpack.spatial.index.query.GeometryQueryBuilder;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
+import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,12 +48,12 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
             return emptyMap();
         }
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        mappers.put(GeometryFieldMapper.CONTENT_TYPE, new GeometryFieldMapper.TypeParser());
+        mappers.put(ShapeFieldMapper.CONTENT_TYPE, new ShapeFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return singletonList(new QuerySpec<>(GeometryQueryBuilder.NAME, GeometryQueryBuilder::new, GeometryQueryBuilder::fromXContent));
+        return singletonList(new QuerySpec<>(ShapeQueryBuilder.NAME, ShapeQueryBuilder::new, ShapeQueryBuilder::fromXContent));
     }
 }

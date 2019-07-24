@@ -47,15 +47,15 @@ import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MA
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
-public class GeometryFieldMapper extends BaseGeoShapeFieldMapper {
-    public static final String CONTENT_TYPE = "geometry";
+public class ShapeFieldMapper extends BaseGeoShapeFieldMapper {
+    public static final String CONTENT_TYPE = "shape";
 
     public static class Defaults extends BaseGeoShapeFieldMapper.Defaults {
         public static final GeometryFieldType FIELD_TYPE = new GeometryFieldType();
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
     }
 
-    public static class Builder extends BaseGeoShapeFieldMapper.Builder<BaseGeoShapeFieldMapper.Builder, GeometryFieldMapper> {
+    public static class Builder extends BaseGeoShapeFieldMapper.Builder<BaseGeoShapeFieldMapper.Builder, ShapeFieldMapper> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -63,9 +63,9 @@ public class GeometryFieldMapper extends BaseGeoShapeFieldMapper {
         }
 
         @Override
-        public GeometryFieldMapper build(BuilderContext context) {
+        public ShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new GeometryFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
+            return new ShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -73,7 +73,7 @@ public class GeometryFieldMapper extends BaseGeoShapeFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            final Builder builder = new GeometryFieldMapper.Builder(name);
+            final Builder builder = new ShapeFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
 
             Boolean coerce = null;
@@ -120,10 +120,10 @@ public class GeometryFieldMapper extends BaseGeoShapeFieldMapper {
         }
     }
 
-    public GeometryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
-                               MultiFields multiFields, CopyTo copyTo) {
+    public ShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                            Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                            MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
     }
