@@ -12,11 +12,7 @@ import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.GeometryCollection;
@@ -26,36 +22,27 @@ import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.BaseGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.xpack.spatial.parser.XYGeometryParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MALFORMED;
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
-
-public class ShapeFieldMapper extends BaseGeoShapeFieldMapper {
+public class ShapeFieldMapper extends BaseGeometryFieldMapper {
     public static final String CONTENT_TYPE = "shape";
 
-    public static class Defaults extends BaseGeoShapeFieldMapper.Defaults {
+    public static class Defaults extends BaseGeometryFieldMapper.Defaults {
         public static final GeometryFieldType FIELD_TYPE = new GeometryFieldType();
-        public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
     }
 
-    public static class Builder extends BaseGeoShapeFieldMapper.Builder<BaseGeoShapeFieldMapper.Builder, ShapeFieldMapper> {
+    public static class Builder extends BaseGeometryFieldMapper.Builder<BaseGeometryFieldMapper.Builder, ShapeFieldMapper> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -70,53 +57,16 @@ public class ShapeFieldMapper extends BaseGeoShapeFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser extends BaseGeometryFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            final Builder builder = new ShapeFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
+        protected boolean parseXContentParameters(String name, Map.Entry<String, Object> entry,
+                                                  Map<String, Object> params) throws MapperParsingException {
+            return false;
+        }
 
-            Boolean coerce = null;
-            Boolean ignoreZ = null;
-            Boolean ignoreMalformed = null;
-            Orientation orientation = null;
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (Names.ORIENTATION.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                    orientation = ShapeBuilder.Orientation.fromString(fieldNode.toString());
-                    iterator.remove();
-                } else if (IGNORE_MALFORMED.equals(fieldName)) {
-                    ignoreMalformed = XContentMapValues.nodeBooleanValue(fieldNode, name + ".ignore_malformed");
-                    iterator.remove();
-                } else if (Names.COERCE.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                    coerce = XContentMapValues.nodeBooleanValue(fieldNode, name + "." + Names.COERCE.getPreferredName());
-                    iterator.remove();
-                } else if (GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName().equals(fieldName)) {
-                    ignoreZ = XContentMapValues.nodeBooleanValue(fieldNode,
-                        name + "." + IGNORE_Z_VALUE.getPreferredName());
-                    iterator.remove();
-                }
-            }
-
-            if (coerce != null) {
-                builder.coerce(coerce);
-            }
-
-            if (ignoreZ != null) {
-                builder.ignoreZValue(ignoreZ);
-            }
-
-            if (ignoreMalformed != null) {
-                builder.ignoreMalformed(ignoreMalformed);
-            }
-
-            if (orientation != null) {
-                builder.orientation(orientation);
-            }
-
-            return builder;
+        @Override
+        public Builder newBuilder(String name, Map<String, Object> paramse) {
+            return new Builder(name);
         }
     }
 
@@ -143,11 +93,11 @@ public class ShapeFieldMapper extends BaseGeoShapeFieldMapper {
         try {
             Object shape = context.parseExternalValue(Object.class);
             if (shape == null) {
-                ShapeBuilder shapeBuilder = XYGeometryParser.parse(context.parser(), this);
-                if (shapeBuilder == null) {
+                Geometry geometry = geometryParser.parse(context.parser());
+                if (geometry == null) {
                     return;
                 }
-                shape = shapeBuilder.buildGeometry();
+                shape = geometry;
             }
             if (shape instanceof Geometry == false) {
                 throw new IllegalArgumentException("invalid geometry type found [" + shape.getClass() + "] while indexing geometry");
@@ -163,7 +113,7 @@ public class ShapeFieldMapper extends BaseGeoShapeFieldMapper {
         }
     }
 
-    public static final class GeometryFieldType extends BaseGeoShapeFieldType {
+    public static final class GeometryFieldType extends BaseGeometryFieldType {
         public GeometryFieldType() {
             super();
         }
