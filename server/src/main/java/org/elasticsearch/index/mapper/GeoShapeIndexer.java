@@ -193,6 +193,18 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         return visitor.fields();
     }
 
+    @Override
+    public void indexDocValueField(ParseContext context, Geometry shape) {
+        BinaryGeoShapeDocValuesField docValuesField =
+            (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+        if (docValuesField == null) {
+            docValuesField = new BinaryGeoShapeDocValuesField(name, shape);
+            context.doc().addWithKey(name, docValuesField);
+        } else {
+            docValuesField.add(shape);
+        }
+    }
+
     /**
      * Calculate the intersection of a line segment and a vertical dateline.
      *

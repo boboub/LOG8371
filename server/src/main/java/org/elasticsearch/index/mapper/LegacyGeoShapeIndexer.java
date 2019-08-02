@@ -69,4 +69,9 @@ public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         }
         return Arrays.asList(fieldType.defaultPrefixTreeStrategy().createIndexableFields(shape));
     }
+
+    @Override
+    public void indexDocValueField(ParseContext context, Shape shape) {
+        throw new UnsupportedOperationException("doc values not supported for legacy shape indexer");
+    }
 }

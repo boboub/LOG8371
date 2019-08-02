@@ -80,6 +80,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         Class<Processed> processedClass();
 
         List<IndexableField> indexShape(ParseContext context, Processed shape);
+
+        void indexDocValueField(ParseContext context, Processed shape);
     }
 
     /**

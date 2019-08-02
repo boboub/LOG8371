@@ -29,17 +29,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
+public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
 
     private List<Geometry> geometries;
 
-    BinaryGeoShapeDocValuesField(String name, Geometry geometry) {
+    public BinaryGeoShapeDocValuesField(String name, Geometry geometry) {
         super(name);
         this.geometries = new ArrayList<>(1);
         add(geometry);
     }
 
-    void add(Geometry geometry) {
+    public void add(Geometry geometry) {
         geometries.add(geometry);
     }
 
