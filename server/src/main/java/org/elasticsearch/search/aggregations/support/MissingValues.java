@@ -395,28 +395,6 @@ public enum MissingValues {
         }
     }
 
-    public static ValuesSource.GeoPoint replaceMissing(final ValuesSource.GeoPoint valuesSource,
-                                                       final MultiGeoValues.GeoPointValue missing) {
-        return new ValuesSource.GeoPoint() {
-
-            @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
-            }
-
-            @Override
-            public MultiGeoValues geoValues(LeafReaderContext context) {
-                final MultiGeoValues values = valuesSource.geoValues(context);
-                return replaceMissing(values, missing);
-            }
-
-            @Override
-            public String toString() {
-                return "anon ValuesSource.GeoPoint of [" + super.toString() + "]";
-            }
-        };
-    }
-
     static MultiGeoValues replaceMissing(final MultiGeoValues values, final MultiGeoValues.GeoValue missing) {
         return new MultiGeoValues() {
 
@@ -451,6 +429,23 @@ public enum MissingValues {
             @Override
             public String toString() {
                 return "anon MultiGeoPointValues of [" + super.toString() + "]";
+            }
+        };
+    }
+
+    public static ValuesSource.GeoPoint replaceMissing(final ValuesSource.GeoPoint valuesSource,
+                                                       final MultiGeoValues.GeoPointValue missing) {
+        return new ValuesSource.GeoPoint() {
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
+            }
+
+            @Override
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                final MultiGeoValues values = valuesSource.geoValues(context);
+                return replaceMissing(values, missing);
             }
         };
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -244,6 +245,14 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                 return new GeoPointFieldMapper.Builder("_name").fieldType();
             case RANGE:
                 return new RangeFieldMapper.Builder("_name", RangeType.DOUBLE).fieldType();
+            case GEOSHAPE:
+                return new GeoShapeFieldMapper.Builder("_name").fieldType();
+            case GEO:
+                if (randomBoolean()) {
+                    return new GeoPointFieldMapper.Builder("_name").fieldType();
+                } else {
+                    return new GeoShapeFieldMapper.Builder("_name").fieldType();
+                }
             default:
                 throw new IllegalArgumentException("Test does not support value type [" + valueType + "]");
         }

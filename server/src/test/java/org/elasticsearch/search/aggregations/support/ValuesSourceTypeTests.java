@@ -39,6 +39,7 @@ public class ValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(ValuesSourceType.GEOPOINT.ordinal(), equalTo(3));
         assertThat(ValuesSourceType.RANGE.ordinal(), equalTo(4));
         assertThat(ValuesSourceType.GEOSHAPE.ordinal(), equalTo(5));
+        assertThat(ValuesSourceType.GEO.ordinal(), equalTo(6));
     }
 
     @Override
@@ -49,6 +50,7 @@ public class ValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(ValuesSourceType.fromString("geopoint"), equalTo(ValuesSourceType.GEOPOINT));
         assertThat(ValuesSourceType.fromString("range"), equalTo(ValuesSourceType.RANGE));
         assertThat(ValuesSourceType.fromString("geoshape"), equalTo(ValuesSourceType.GEOSHAPE));
+        assertThat(ValuesSourceType.fromString("geo"), equalTo(ValuesSourceType.GEO));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ValuesSourceType.fromString("does_not_exist"));
         assertThat(e.getMessage(),
             equalTo("No enum constant org.elasticsearch.search.aggregations.support.ValuesSourceType.DOES_NOT_EXIST"));
@@ -63,6 +65,7 @@ public class ValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertReadFromStream(3, ValuesSourceType.GEOPOINT);
         assertReadFromStream(4, ValuesSourceType.RANGE);
         assertReadFromStream(5, ValuesSourceType.GEOSHAPE);
+        assertReadFromStream(6, ValuesSourceType.GEO);
     }
 
     @Override
@@ -73,5 +76,6 @@ public class ValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertWriteToStream(ValuesSourceType.GEOPOINT, 3);
         assertWriteToStream(ValuesSourceType.RANGE, 4);
         assertWriteToStream(ValuesSourceType.GEOSHAPE, 5);
+        assertWriteToStream(ValuesSourceType.GEO, 6);
     }
 }
