@@ -33,12 +33,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Geo> {
 
     private final boolean wrapLongitude;
 
     GeoBoundsAggregatorFactory(String name,
-                                ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                                ValuesSourceConfig<ValuesSource.Geo> config,
                                 boolean wrapLongitude,
                                 QueryShardContext queryShardContext,
                                 AggregatorFactory parent,
@@ -57,7 +57,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSou
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource.Geo valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
