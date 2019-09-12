@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
-import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -60,6 +61,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
     public static class Builder extends FieldMapper.Builder<Builder, DenseVectorFieldMapper> {
         private int dims = 0;
+        private int iters = 0;
+        private boolean streaming = false;
+        private float sampleFraction = 1.0f;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -75,10 +79,36 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             return this;
         }
 
+        public Builder iters(int iters) {
+            this.iters = iters;
+            return this;
+        }
+
+        public Builder streaming(boolean streaming) {
+            this.streaming = streaming;
+            return this;
+        }
+
+        public Builder sampleFraction(float sampleFraction) {
+            this.sampleFraction = sampleFraction;
+            return this;
+        }
+
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
             fieldType().setDims(dims);
+
+            fieldType().setIters(iters);
+            fieldType().putAttribute("iters", String.valueOf(iters));
+
+            fieldType().setStreaming(streaming);
+            fieldType().putAttribute("streaming", String.valueOf(streaming));
+
+            fieldType().setSampleFraction(sampleFraction);
+            fieldType().putAttribute("sample_fraction", String.valueOf(sampleFraction));
+
+            fieldType().setDocValuesType(DocValuesType.BINARY);
         }
 
         @Override
@@ -104,12 +134,28 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                 throw new MapperParsingException("The [dims] property must be specified for field [" + name + "].");
             }
             int dims = XContentMapValues.nodeIntegerValue(dimsField);
-            return builder.dims(dims);
+            builder.dims(dims);
+
+            Object itersField = node.remove("iters");
+            int iters = XContentMapValues.nodeIntegerValue(itersField, 2);
+            builder.iters(iters);
+
+            Object streamingField = node.remove("streaming");
+            boolean streaming = XContentMapValues.nodeBooleanValue(streamingField, false);
+            builder.streaming(streaming);
+
+            Object sampleFractionField = node.remove("sample_fraction");
+            float sampleFraction = XContentMapValues.nodeFloatValue(sampleFractionField, 1.0f);
+            builder.sampleFraction(sampleFraction);
+            return builder;
         }
     }
 
     public static final class DenseVectorFieldType extends MappedFieldType {
         private int dims;
+        private int iters;
+        private boolean streaming;
+        private float sampleFraction;
 
         public DenseVectorFieldType() {}
 
@@ -125,8 +171,32 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             return dims;
         }
 
+        int iters() {
+            return iters;
+        }
+
+        boolean streaming() {
+            return streaming;
+        }
+
+        float sampleFraction() {
+            return sampleFraction;
+        }
+
         void setDims(int dims) {
             this.dims = dims;
+        }
+
+        void setIters(int iters) {
+            this.iters = iters;
+        }
+
+        void setStreaming(boolean streaming) {
+            this.streaming = streaming;
+        }
+
+        void setSampleFraction(float sampleFraction) {
+            this.sampleFraction = sampleFraction;
         }
 
         @Override
@@ -210,7 +280,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
-        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
+        Field field = new Field(fieldType().name(), new BytesRef(bytes), fieldType());
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                 "] doesn't not support indexing multiple values for the same field in the same document");
@@ -222,6 +292,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         builder.field("dims", fieldType().dims());
+        builder.field("iters", fieldType().iters());
+        builder.field("streaming", fieldType().streaming());
+        builder.field("sample_fraction", fieldType().sampleFraction());
     }
 
     @Override
