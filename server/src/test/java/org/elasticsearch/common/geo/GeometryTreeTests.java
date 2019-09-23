@@ -117,8 +117,8 @@ public class GeometryTreeTests extends ESTestCase {
 
     // adapted from org.apache.lucene.geo.TestPolygon2D#testMultiPolygon
     public void testPolygonWithHole() throws Exception {
-        Polygon polyWithHole = new Polygon(new LinearRing(new double[] { -50, -50, 50, 50, -50 }, new double[] { -50, 50, 50, -50, -50 }),
-            Collections.singletonList(new LinearRing(new double[] { -10, -10, 10, 10, -10 }, new double[] { -10, 10, 10, -10, -10 })));
+        Polygon polyWithHole = new Polygon(new LinearRing(new double[] { -50, 50, 50, -50, -50 }, new double[] { -50, -50, 50, 50, -50 }),
+            Collections.singletonList(new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 })));
 
         GeometryTreeWriter writer = new GeometryTreeWriter(polyWithHole, TestCoordinateEncoder.INSTANCE);
         BytesStreamOutput output = new BytesStreamOutput();
@@ -141,7 +141,7 @@ public class GeometryTreeTests extends ESTestCase {
         double[] hx = {21, 21, 29, 29, 21};
         double[] hy = {1, 20, 20, 1, 1};
 
-        Polygon polyWithHole = new Polygon(new LinearRing(py, px),  Collections.singletonList(new LinearRing(hy, hx)));
+        Polygon polyWithHole = new Polygon(new LinearRing(px, py),  Collections.singletonList(new LinearRing(hx, hy)));
         // test cell crossing poly
         GeometryTreeWriter writer = new GeometryTreeWriter(polyWithHole, TestCoordinateEncoder.INSTANCE);
         BytesStreamOutput output = new BytesStreamOutput();
