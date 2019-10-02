@@ -759,7 +759,7 @@ See <<explain-analyze-api>>.
 
 [role="exclude",id="indices-synced-flush"]
 === Synced flush API
-See <<synced-flush-api>>.
+See <<indices-synced-flush-api>>.
 
 [role="exclude",id="_repositories"]
 === Snapshot repositories
@@ -820,6 +820,10 @@ See <<ccs-works>>.
 [role="exclude",id="administer-elasticsearch"]
 === Administering {es}
 See <<high-availability>>.
+
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.
 
 [role="exclude",id="delete-data-frame-transform"]
 ===  Delete {transforms} API
