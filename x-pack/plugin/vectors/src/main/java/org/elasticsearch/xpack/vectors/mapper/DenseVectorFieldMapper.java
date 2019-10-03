@@ -52,7 +52,6 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
     private static final byte INT_BYTES = 4;
-    private static final int CENTROIDS_COUNT = 1000;
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new DenseVectorFieldType();
@@ -68,12 +67,18 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
     public static class Builder extends FieldMapper.Builder<Builder, DenseVectorFieldMapper> {
         private int dims = 0;
+        private int numCentroids = 0;
         private float[][] centroids = null;
         private float[] centroidsSquaredMagnitudes = null;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
+        }
+
+        public Builder numCentroids(int numCentroids) {
+            this.numCentroids = numCentroids;
+            return this;
         }
 
         public Builder dims(int dims) {
@@ -94,9 +99,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                     ByteBuffer buffer = ByteBuffer.wrap(bytes);
                     buffer.order(ByteOrder.LITTLE_ENDIAN);
                     FloatBuffer fbuffer = buffer.asFloatBuffer();
-                    centroids = new float[CENTROIDS_COUNT][dims];
-                    centroidsSquaredMagnitudes = new float[CENTROIDS_COUNT];
-                    for (int i = 0; i < CENTROIDS_COUNT; i++) {
+                    centroids = new float[numCentroids][dims];
+                    centroidsSquaredMagnitudes = new float[numCentroids];
+                    for (int i = 0; i < numCentroids; i++) {
                         centroidsSquaredMagnitudes[i] = 0;
                         for (int dim = 0; dim < dims; dim++) {
                             centroids[i][dim] = fbuffer.get();
@@ -144,6 +149,14 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             }
             int dims = XContentMapValues.nodeIntegerValue(dimsField);
             builder.dims(dims);
+
+            Object centroidsField = node.remove("centroids");
+            if (centroidsField == null) {
+                throw new MapperParsingException("The [centroids] property must be specified for field [" + name + "].");
+            }
+            int centroids = XContentMapValues.nodeIntegerValue(centroidsField);
+            builder.numCentroids(centroids);
+
             builder.buildCentroids();
             return builder;
         }
@@ -296,6 +309,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         builder.field("dims", fieldType().dims());
+        builder.field("centroids", fieldType().getCentroids().length);
     }
 
     @Override
