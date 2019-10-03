@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.vectors.query;
 
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
@@ -158,14 +160,14 @@ public class AnnQueryBuilder extends AbstractQueryBuilder<AnnQueryBuilder> {
         }
 
         String centroidFieldName = fieldType.name() + ".centroid";
-        BoolQueryBuilder centroidShouldQuery = new BoolQueryBuilder();
+        BoolQueryBuilder boolBuilder = new BoolQueryBuilder();
         for (BytesRef centroidCode : centroidCodes) {
-            BoolQueryBuilder filterCentroid = new BoolQueryBuilder();
-            filterCentroid.filter(new TermQueryBuilder(centroidFieldName, centroidCode));
-            centroidShouldQuery.should(filterCentroid);
+            boolBuilder.should(new TermQueryBuilder(centroidFieldName, centroidCode));
         }
-        centroidShouldQuery.minimumShouldMatch(1);
-        return centroidShouldQuery.toQuery(context);
+        boolBuilder.minimumShouldMatch(1);
+
+        ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(boolBuilder);
+        return constantScoreBuilder.toQuery(context);
     }
 
     private static void updateTop(float[] minDistances, short[] minIndexes, float newDistance, short newIndex) {
