@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.PriorityQueue;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -137,9 +138,8 @@ public class AnnQueryBuilder extends AbstractQueryBuilder<AnnQueryBuilder> {
         float[] centroidsSquaredMagnitudes = ((DenseVectorFieldType)fieldType).getCentroidsSquaredMagnitudes();
         int dims = queryVector.length;
 
-        float[] topMinDistances = new float[numberOfProbes];
-        short[] topMinIndexes = new short[numberOfProbes];
-        Arrays.fill(topMinDistances, Float.MAX_VALUE);
+        PriorityQueue<Centroid> closestCentroids = new PriorityQueue<>(numberOfProbes,
+            (first, second) -> -Float.compare(first.distance, second.distance));
 
         for (short i = 0; i < centroids.length; i++){
             float dotProduct = 0;
@@ -147,16 +147,19 @@ public class AnnQueryBuilder extends AbstractQueryBuilder<AnnQueryBuilder> {
                 dotProduct += queryVector[dim] * centroids[i][dim];
             }
             float result = centroidsSquaredMagnitudes[i] - 2 * dotProduct;
-            updateTop(topMinDistances, topMinIndexes, result, i);
+            updateTop(closestCentroids, new Centroid(i, result));
         }
 
         // get codes for these centroids
         BytesRef[] centroidCodes = new BytesRef[numberOfProbes];
-        for (int i = 0; i < numberOfProbes; i++) {
+        int count = 0;
+        for (Centroid centroid : closestCentroids) {
+            short centroidIndex = centroid.index;
+
             byte[] centroidCode = new byte[2];
-            centroidCode[0] = (byte) (topMinIndexes[i] >> 8);
-            centroidCode[1] = (byte) topMinIndexes[i];
-            centroidCodes[i] = new BytesRef(centroidCode);
+            centroidCode[0] = (byte) (centroidIndex >> 8);
+            centroidCode[1] = (byte) centroidIndex;
+            centroidCodes[count++] = new BytesRef(centroidCode);
         }
 
         String centroidFieldName = fieldType.name() + ".centroid";
@@ -170,25 +173,24 @@ public class AnnQueryBuilder extends AbstractQueryBuilder<AnnQueryBuilder> {
         return constantScoreBuilder.toQuery(context);
     }
 
-    private static void updateTop(float[] minDistances, short[] minIndexes, float newDistance, short newIndex) {
-        int n = minDistances.length;
-        if (newDistance >= minDistances[n-1]){
-            return;
-        } else {
-            minDistances[n-1] = newDistance;
-            minIndexes[n-1] = newIndex;
+    private static class Centroid {
+        public short index;
+        public float distance;
+
+        public Centroid(short index, float distance) {
+            this.index = index;
+            this.distance = distance;
         }
-        // pun newDistance and newIndex in the right place
-        for (int j = n - 2; j >= 0 ; j--) {
-            if (minDistances[j] > minDistances[j + 1]) {
-                float tmp = minDistances[j];
-                minDistances[j] = minDistances[j+1];
-                minDistances[j+1] = tmp;
-                short tmpIndex = minIndexes[j];
-                minIndexes[j] = minIndexes[j+1];
-                minIndexes[j+1] = tmpIndex;
-            } else {
-                break;
+    }
+
+    private void updateTop(PriorityQueue<Centroid> centroids, Centroid newCentroid) {
+        if (centroids.size() < numberOfProbes) {
+            centroids.offer(newCentroid);
+        } else {
+            Centroid bottom = centroids.peek();
+            if (newCentroid.distance < bottom.distance) {
+                centroids.poll();
+                centroids.offer(newCentroid);
             }
         }
     }
