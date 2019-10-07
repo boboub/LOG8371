@@ -438,6 +438,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
             List<IndexableField> fields = new ArrayList<>();
             fields.addAll(geometryIndexer.indexShape(context, shape));
+            if (fieldType().hasDocValues()) {
+                geometryIndexer.indexDocValueField(context, shape);
+            }
             createFieldNamesField(context, fields);
             for (IndexableField field : fields) {
                 context.doc().add(field);

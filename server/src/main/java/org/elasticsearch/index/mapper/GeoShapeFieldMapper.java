@@ -72,7 +72,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
         @Override
         public boolean defaultDocValues(Version indexCreated) {
-            return Version.V_7_5_0.onOrBefore(indexCreated);
+            return Version.CURRENT.onOrBefore(indexCreated);
         }
 
         @Override
