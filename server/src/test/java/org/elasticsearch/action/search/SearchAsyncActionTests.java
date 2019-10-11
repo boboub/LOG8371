@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -39,7 +38,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -107,7 +105,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
-                null,
+                new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -212,7 +210,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
-                null,
+                new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -315,7 +313,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         shardsIter,
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                         0,
-                        null,
+                        new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                         new ArraySearchPhaseResults<>(shardsIter.size()),
                         request.getMaxConcurrentShardRequests(),
                         SearchResponse.Clusters.EMPTY) {
@@ -420,7 +418,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
-                null,
+                new MainSearchTask(0, "n/a", "n/a", ()-> "test", null, Collections.emptyMap()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -517,11 +515,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         TestSearchPhaseResult(long id, DiscoveryNode node) {
             this.requestId = id;
             this.node = node;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-
         }
     }
 

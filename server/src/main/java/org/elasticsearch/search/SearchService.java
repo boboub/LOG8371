@@ -134,7 +134,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
-     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not 
+     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not
      * noticeably slow down searches.
      */
     public static final Setting<Boolean> LOW_LEVEL_CANCELLATION_SETTING =
@@ -1025,7 +1025,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
         try {
-            listener.onResponse(new CanMatchResponse(canMatch(request)));
+            CanMatchResponse canMatchResponse = new CanMatchResponse(canMatch(request));
+            listener.onResponse(canMatchResponse);
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -1091,6 +1092,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeBoolean(canMatch);
         }
 

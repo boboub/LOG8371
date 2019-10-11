@@ -73,7 +73,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
-    private final SearchTask task;
+    private final MainSearchTask task;
     private final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
     private final Map<String, AliasFilter> aliasFilter;
@@ -101,7 +101,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         SearchTimeProvider timeProvider, long clusterStateVersion,
-                                        SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
+                                        MainSearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
                                         SearchResponse.Clusters clusters) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -151,6 +151,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     public final void start() {
         if (getNumShards() == 0) {
+            task.getStatus().phaseStarted(getName(), 0);
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
             int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
@@ -160,6 +161,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
                 ShardSearchFailure.EMPTY_ARRAY, clusters));
+            task.getStatus().phaseCompleted(getName());
             return;
         }
         executePhase(this);
@@ -167,6 +169,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void run() {
+        task.getStatus().phaseStarted(getName(), shardsIts.size());
         for (final SearchShardIterator iterator : toSkipShardsIts) {
             assert iterator.skip();
             skipShard(iterator);
@@ -331,6 +334,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     return;
                 }
             }
+            task.getStatus().phaseCompleted(currentPhase.getName());
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
                     .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));
@@ -381,6 +385,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
+            task.getStatus().shardFailed(getName(), shardTarget, e);
             onPhaseDone();
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
@@ -389,9 +394,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             logger.trace(() -> new ParameterizedMessage(
                 "{}: Failed to execute [{}] lastShard [{}]",
                 shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
-            if (!lastShard) {
+            if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             } else {
+                task.getStatus().shardFailed(getName(), shardTarget, e);
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (e != null && !TransportActions.isShardNotAvailableException(e)) {
@@ -466,6 +472,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
+        task.getStatus().shardProcessed(getName(), result);
         // we need to increment successful ops first before we compare the exit condition otherwise if we
         // are fast we could concurrently update totalOps but then preempt one of the threads which can
         // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
@@ -501,7 +508,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public final SearchTask getTask() {
+    public final MainSearchTask getTask() {
         return task;
     }
 
@@ -528,7 +535,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
+        SearchPhaseExecutionException phaseFailure = new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures());
+        task.getStatus().phaseFailed(phase.getName(), phaseFailure);
+        raisePhaseFailure(phaseFailure);
     }
 
     /**
