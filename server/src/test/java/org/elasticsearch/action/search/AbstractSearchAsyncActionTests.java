@@ -190,7 +190,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             new ArraySearchPhaseResults<>(10), null, false, new AtomicLong(), (listener, shard) -> {}, null, null);
         String scrollId = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId);
+        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId, action.buildShardFailures());
         assertEquals(scrollId, searchResponse.getScrollId());
         assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
@@ -207,7 +207,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             new IllegalArgumentException());
         String scrollId = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId);
+        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId, action.buildShardFailures());
         assertEquals(scrollId, searchResponse.getScrollId());
         assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
@@ -215,7 +215,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertSame(searchResponse.getHits(), internalSearchResponse.hits());
     }
 
-    public void testBuildSearchResponseDisallowPartialFailures() {
+    public void testSendSearchResponseDisallowPartialFailures() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
@@ -233,7 +233,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             action.onShardFailure(i, new SearchShardTarget(failureNodeId, failureShardId, failureClusterAlias, OriginalIndices.NONE),
                 new IllegalArgumentException());
         }
-        action.buildSearchResponse(InternalSearchResponse.empty(), randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10));
+        action.sendSearchResponse(InternalSearchResponse.empty(), randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10));
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException)exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
