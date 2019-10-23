@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -21,7 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
@@ -51,10 +51,10 @@ public class DatePart extends BinaryDateTimeFunction {
             VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private Function<ZonedDateTime, Integer> extractFunction;
+        private ToIntFunction<ZonedDateTime> extractFunction;
         private Set<String> aliases;
 
-        Part(Function<ZonedDateTime, Integer> extractFunction, String... aliases) {
+        Part(ToIntFunction<ZonedDateTime> extractFunction, String... aliases) {
             this.extractFunction = extractFunction;
             this.aliases = new HashSet<>(Arrays.asList(aliases));
         }
@@ -68,17 +68,17 @@ public class DatePart extends BinaryDateTimeFunction {
             return DateTimeField.findSimilar(NAME_TO_PART.keySet(), match);
         }
 
-        public static Part resolve(String truncateTo) {
-            return DateTimeField.resolveMatch(NAME_TO_PART, truncateTo);
+        public static Part resolve(String dateTimePart) {
+            return DateTimeField.resolveMatch(NAME_TO_PART, dateTimePart);
         }
 
         public Integer extract(ZonedDateTime dateTime) {
-            return extractFunction.apply(dateTime);
+            return extractFunction.applyAsInt(dateTime);
         }
     }
 
-    public DatePart(Source source, Expression truncateTo, Expression timestamp, ZoneId zoneId) {
-        super(source, truncateTo, timestamp, zoneId, BinaryDateTimeProcessor.BinaryDateOperation.PART);
+    public DatePart(Source source, Expression dateTimePart, Expression timestamp, ZoneId zoneId) {
+        super(source, dateTimePart, timestamp, zoneId);
     }
 
     @Override
@@ -87,28 +87,13 @@ public class DatePart extends BinaryDateTimeFunction {
     }
 
     @Override
-    protected BinaryScalarFunction replaceChildren(Expression newTruncateTo, Expression newTimestamp) {
-        return new DatePart(source(), newTruncateTo, newTimestamp, zoneId());
+    protected BinaryScalarFunction replaceChildren(Expression newDateTimePart, Expression newTimestamp) {
+        return new DatePart(source(), newDateTimePart, newTimestamp, zoneId());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, DatePart::new, left(), right(), zoneId());
-    }
-
-    @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
-    }
-
-    @Override
-    protected boolean resolveDateTimeField(String dateTimeField) {
-        return Part.resolve(dateTimeField) != null;
-    }
-
-    @Override
-    protected List<String> findSimilarDateTimeFields(String dateTimeField) {
-        return Part.findSimilar(dateTimeField);
     }
 
     @Override
@@ -119,6 +104,21 @@ public class DatePart extends BinaryDateTimeFunction {
     @Override
     public Object fold() {
         return DatePartProcessor.process(left().fold(), right().fold(), zoneId());
+    }
+
+    @Override
+    protected Pipe createPipe(Pipe dateTimePart, Pipe timestamp, ZoneId zoneId) {
+        return new DatePartPipe(source(), this, dateTimePart, timestamp, zoneId);
+    }
+
+    @Override
+    protected boolean resolveDateTimeField(String dateTimeField) {
+        return Part.resolve(dateTimeField) != null;
+    }
+
+    @Override
+    protected List<String> findSimilarDateTimeFields(String dateTimeField) {
+        return Part.findSimilar(dateTimeField);
     }
 
     @Override

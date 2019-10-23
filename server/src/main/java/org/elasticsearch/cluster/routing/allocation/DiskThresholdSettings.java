@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +58,7 @@ public class DiskThresholdSettings {
             Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
         Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -319,6 +320,24 @@ public class DiskThresholdSettings {
 
     public TimeValue getRerouteInterval() {
         return rerouteInterval;
+    }
+
+    String describeLowThreshold() {
+        return freeBytesThresholdLow.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdLow, "%")
+            : freeBytesThresholdLow.toString();
+    }
+
+    String describeHighThreshold() {
+        return freeBytesThresholdHigh.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdHigh, "%")
+            : freeBytesThresholdHigh.toString();
+    }
+
+    String describeFloodStageThreshold() {
+        return freeBytesThresholdFloodStage.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdFloodStage, "%")
+            : freeBytesThresholdFloodStage.toString();
     }
 
     /**
