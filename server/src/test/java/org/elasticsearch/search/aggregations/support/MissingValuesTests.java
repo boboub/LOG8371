@@ -377,7 +377,7 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public ValuesSourceType valuesSourceType() {
-                return ValuesSourceType.GEOPOINT;
+                return CoreValuesSourceType.GEOPOINT;
             }
         };
         final MultiGeoValues.GeoPointValue missing = new MultiGeoValues.GeoPointValue(

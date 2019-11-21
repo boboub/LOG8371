@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -33,13 +35,32 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
 
     private boolean lenient;
+
+    public static TrainedModelConfig.Builder createTestInstance(String modelId) {
+        List<String> tags = Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false));
+        return TrainedModelConfig.builder()
+            .setInput(TrainedModelInputTests.createRandomInput())
+            .setMetadata(randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)))
+            .setCreateTime(Instant.ofEpochMilli(randomNonNegativeLong()))
+            .setVersion(Version.CURRENT)
+            .setModelId(modelId)
+            .setCreatedBy(randomAlphaOfLength(10))
+            .setDescription(randomBoolean() ? null : randomAlphaOfLength(100))
+            .setEstimatedHeapMemory(randomNonNegativeLong())
+            .setEstimatedOperations(randomNonNegativeLong())
+            .setLicenseLevel(License.OperationMode.PLATINUM.description())
+            .setTags(tags);
+    }
 
     @Before
     public void chooseStrictOrLenient() {
@@ -63,17 +84,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
 
     @Override
     protected TrainedModelConfig createTestInstance() {
-        List<String> tags = Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false));
-        return new TrainedModelConfig(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            Version.CURRENT,
-            randomBoolean() ? null : randomAlphaOfLength(100),
-            Instant.ofEpochMilli(randomNonNegativeLong()),
-            null, // is not parsed so should not be provided
-            tags,
-            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            TrainedModelInputTests.createRandomInput());
+        return createTestInstance(randomAlphaOfLength(10)).build();
     }
 
     @Override
@@ -96,6 +107,16 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         return new NamedWriteableRegistry(entries);
     }
 
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return lenient ? ToXContent.EMPTY_PARAMS : new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true"));
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
     public void testToXContentWithParams() throws IOException {
         TrainedModelConfig config = new TrainedModelConfig(
             randomAlphaOfLength(10),
@@ -106,7 +127,10 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelDefinitionTests.createRandomBuilder(randomAlphaOfLength(10)).build(),
             Collections.emptyList(),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            TrainedModelInputTests.createRandomInput());
+            TrainedModelInputTests.createRandomInput(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            "platinum");
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("definition"));
@@ -164,4 +188,39 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo("illegal to set [created_by] at inference model creation"));
     }
+
+    public void testIsAvailableWithLicense() {
+        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
+
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isActive()).thenReturn(false);
+        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
+
+        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
+
+
+        when(licenseState.isActive()).thenReturn(true);
+        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.PLATINUM);
+        assertTrue(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+
+        when(licenseState.isActive()).thenReturn(false);
+        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
+        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+
+        when(licenseState.isActive()).thenReturn(true);
+        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.GOLD);
+        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+
+        when(licenseState.isActive()).thenReturn(false);
+        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
+        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+    }
+
 }
