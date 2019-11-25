@@ -39,7 +39,7 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(CoreValuesSourceType.GEOPOINT.ordinal(), equalTo(3));
         assertThat(CoreValuesSourceType.RANGE.ordinal(), equalTo(4));
         assertThat(CoreValuesSourceType.GEOSHAPE.ordinal(), equalTo(5));
-        assertThat(CoreValuesSourceType.GEOPOINT.ordinal(), equalTo(6));
+        assertThat(CoreValuesSourceType.GEO.ordinal(), equalTo(6));
     }
 
     @Override
