@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TemplateScript;
 
 import java.util.Collections;
@@ -84,7 +85,7 @@ public class FactoryTests extends ScriptTestCase {
             boolean needsD();
         }
 
-        public interface Factory {
+        public interface Factory extends ScriptFactory {
             StatefulFactory newFactory(int x, int y);
 
             boolean needsTest();
@@ -137,7 +138,7 @@ public class FactoryTests extends ScriptTestCase {
         public static final String[] PARAMETERS = new String[] {"test"};
         public abstract Object execute(int test);
 
-        public interface Factory {
+        public interface Factory extends ScriptFactory {
             FactoryTestScript newInstance(Map<String, Object> params);
 
             boolean needsTest();
@@ -161,11 +162,37 @@ public class FactoryTests extends ScriptTestCase {
         assertEquals(false, factory.needsNothing());
     }
 
+    public void testDeterministic() {
+        FactoryTestScript.Factory factory =
+            scriptEngine.compile("deterministic_test", "Integer.parseInt('123')",
+                FactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertTrue(factory.isResultDeterministic());
+        assertEquals(123, factory.newInstance(Collections.emptyMap()).execute(0));
+    }
+
+    public void testNotDeterministic() {
+        FactoryTestScript.Factory factory =
+            scriptEngine.compile("not_deterministic_test", "Math.random()",
+                FactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertFalse(factory.isResultDeterministic());
+        Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
+        assertTrue(d >= 0.0 && d <= 1.0);
+    }
+
+    public void testMixedDeterministicIsNotDeterministic() {
+        FactoryTestScript.Factory factory =
+            scriptEngine.compile("not_deterministic_test", "Integer.parseInt('123') + Math.random()",
+                FactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertFalse(factory.isResultDeterministic());
+        Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
+        assertTrue(d >= 123.0 && d <= 124.0);
+    }
+
     public abstract static class EmptyTestScript {
         public static final String[] PARAMETERS = {};
         public abstract Object execute();
 
-        public interface Factory {
+        public interface Factory extends ScriptFactory {
             EmptyTestScript newInstance();
         }
 

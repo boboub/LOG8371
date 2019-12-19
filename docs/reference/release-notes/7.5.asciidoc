@@ -1,9 +1,89 @@
+[[release-notes-7.5.1]]
+== {es} version 7.5.1
+
+Also see <<breaking-changes-7.5,Breaking changes in 7.5>>.
+
+[[enhancement-7.5.1]]
+[float]
+=== Enhancements
+
+Features/Watcher::
+* Log attachment generation failures {pull}50080[#50080]
+
+Network::
+* Netty4: switch to composite cumulator {pull}49478[#49478]
+
+
+
+[[bug-7.5.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Fix iterate-from-1 bug in smart realm order {pull}49473[#49473]
+
+CRUD::
+* Do not mutate request on scripted upsert {pull}49578[#49578] (issue: {issue}48670[#48670])
+
+Cluster Coordination::
+* Make elasticsearch-node tools custom metadata-aware {pull}48390[#48390]
+
+Engine::
+* Account trimAboveSeqNo in committed translog generation {pull}50205[#50205] (issue: {issue}49970[#49970])
+
+Features/ILM+SLM::
+* Handle failure to retrieve ILM policy step better {pull}49193[#49193] (issue: {pull}49128[#49128])
+
+Features/Java High Level REST Client::
+* Support es7 node http publish_address format {pull}49279[#49279] (issue: {issue}48950[#48950])
+
+Geo::
+* Fix handling of circles in legacy geo_shape queries {pull}49410[#49410] (issue: {issue}49296[#49296])
+
+Infra/Packaging::
+* Extend systemd timeout during startup {pull}49784[#49784] (issue: {issue}49593[#49593])
+
+Machine Learning::
+* Use query in cardinality check {pull}49939[#49939]
+* Fix expired job results deletion audit message {pull}49560[#49560] (issue: {issue}49549[#49549])
+* Apply source query on data frame analytics memory estimation {pull}49527[#49527] (issue: {issue}49454[#49454])
+* Stop timing stats failure propagation {pull}49495[#49495]
+
+Mapping::
+* Improve DateFieldMapper `ignore_malformed` handling {pull}50090[#50090] (issue: {issue}50081[#50081])
+
+Recovery::
+* Migrate peer recovery from translog to retention lease {pull}49448[#49448] (issue: {issue}45136[#45136])
+
+SQL::
+* COUNT DISTINCT returns 0 instead of NULL for no matching docs {pull}50037[#50037] (issue: {issue}50013[#50013])
+* Fix LOCATE function optional parameter handling  {pull}49666[#49666] (issue: {issue}49557[#49557])
+* Fix NULL handling for FLOOR and CEIL functions {pull}49644[#49644] (issue: {issue}49556[#49556])
+* Handle NULL arithmetic operations with INTERVALs {pull}49633[#49633] (issue: {issue}49297[#49297])
+* Fix issue with GROUP BY YEAR() {pull}49559[#49559] (issue: {issue}49386[#49386])
+* Fix issue with CASE/IIF pre-calculating results {pull}49553[#49553] (issue: {issue}49388[#49388])
+* Fix issue with folding of CASE/IIF {pull}49449[#49449] (issue: {issue}49387[#49387])
+* Fix issues with WEEK/ISO_WEEK/DATEDIFF {pull}49405[#49405] (issues: {issue}48209[#48209], {issue}49376[#49376])
+
+Snapshot/Restore::
+* Fix Index Deletion during Snapshot Finalization {pull}50202[#50202] (issues: {issue}45689[#45689], {issue}50200[#50200])
+
+Transform::
+* Fix possible audit logging disappearance after rolling upgrade {pull}49731[#49731] (issue: {issue}49730[#49730])
+
+
 [[release-notes-7.5.0]]
 == {es} version 7.5.0
 
-coming[7.5.0]
-
 Also see <<breaking-changes-7.5,Breaking changes in 7.5>>.
+
+[[known-issues-7.5.0]]
+[float]
+=== Known issues
+
+* Stop all {transforms} during a rolling upgrade to 7.5.
+If a {transform} is running during upgrade, the {transform} audit index might disappear.
+(issue: {issue}/49730[#49730])
 
 [[breaking-7.5.0]]
 [float]
@@ -143,9 +223,6 @@ Infra/Settings::
 * Clarify error message on keystore write permissions {pull}46321[#46321]
 * Add more meaningful keystore version mismatch errors {pull}46291[#46291] (issue: {issue}44624[#44624])
 
-MULTIPLE AREA LABELS::
-* SQL: Add support for shape type {pull}46464[#46464] (issues: {issue}43644[#43644], {issue}46412[#46412])
-
 Machine Learning::
 * Throw an exception when memory usage estimation endpoint encounters empty data frame. {pull}49143[#49143] (issue: {issue}49140[#49140])
 * Change format of MulticlassConfusionMatrix result to be more self-explanatory {pull}48174[#48174] (issue: {issue}46735[#46735])
@@ -171,10 +248,10 @@ Recovery::
 * Do not send recovery requests with CancellableThreads {pull}46287[#46287] (issue: {issue}46178[#46178])
 
 SQL::
-* SQL: Add 3rd optional arg to DATE_PART {pull}47614[#47614] (issue: {issue}47206[#47206])
 * SQL: make date/datetime and interval types compatible in conditional functions {pull}47595[#47595] (issue: {issue}46674[#46674])
 * SQL: use calendar interval of 1y instead of fixed interval for grouping by YEAR and HISTOGRAMs {pull}47558[#47558] (issue: {issue}40162[#40162])
 * SQL: Support queries with HAVING over SELECT {pull}46709[#46709] (issue: {issue}37051[#37051])
+* SQL: Add support for shape type {pull}46464[#46464] (issues: {issue}43644[#43644], {issue}46412[#46412])
 
 Search::
 * Remove response search phase from ExpandSearchPhase {pull}48401[#48401]
@@ -298,6 +375,8 @@ Features/Monitoring::
 Features/Watcher::
 * Fix class used to initialize logger in Watcher {pull}46467[#46467]
 * Fix wrong URL encoding in watcher HTTP client {pull}45894[#45894] (issue: {issue}44970[#44970])
+* Prevent deadlock by using separate schedulers {pull}48697[#48697] (issues: {issue}41451[#41451], {issue}47599[#47599])
+* Fix cluster alert for watcher/monitoring IndexOutOfBoundsExcep… {pull}45308[#45308] (issue: {issue}43184[#43184])
 
 Geo::
 * Geo: implement proper handling of out of bounds geo points {pull}47734[#47734] (issue: {issue}43916[#43916])
@@ -320,11 +399,6 @@ Infra/Logging::
 
 Infra/Scripting::
 * Drop stored scripts with the old style-id {pull}48078[#48078] (issue: {issue}47593[#47593])
-
-MULTIPLE AREA LABELS::
-* Prevent deadlock by using separate schedulers {pull}48697[#48697] (issues: {issue}41451[#41451], {issue}47599[#47599])
-* Don't apply the plugin's reader wrapper in can_match phase {pull}47816[#47816] (issue: {issue}46817[#46817])
-* Fix cluster alert for watcher/monitoring IndexOutOfBoundsExcep… {pull}45308[#45308] (issue: {issue}43184[#43184])
 
 Machine Learning::
 * [ML] Fixes for stop datafeed edge cases {pull}49191[#49191] (issues: {issue}43670[#43670], {issue}48931[#48931])
@@ -372,6 +446,7 @@ Search::
 * Fix alias field resolution in match query {pull}47369[#47369]
 * Multi-get requests should wait for search active {pull}46283[#46283] (issue: {issue}27500[#27500])
 * Resolve the incorrect scroll_current when delete or close index {pull}45226[#45226]
+* Don't apply the plugin's reader wrapper in can_match phase {pull}47816[#47816] (issue: {issue}46817[#46817])
 
 Security::
 * Remove uniqueness constraint for API key name and make it optional {pull}47549[#47549] (issue: {issue}46646[#46646])

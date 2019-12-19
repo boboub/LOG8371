@@ -62,22 +62,22 @@ public class TriangleTreeTests extends ESTestCase {
         assertDimensionalShapeType(randomMultiPolygon(false), DimensionalShapeType.MULTIPOLYGON);
         assertDimensionalShapeType(randomRectangle(), DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false))),
+            new GeometryCollection<>(Collections.singletonList(randomPoint(false))),
+            new GeometryCollection<>(Collections.singletonList(randomMultiPoint(false))),
             new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomPoint(false), randomMultiPoint(false))))))
+                new GeometryCollection<>(Arrays.asList(randomPoint(false), randomMultiPoint(false))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_POINTS);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiLine(false))),
+            new GeometryCollection<>(Arrays.asList(randomPoint(false), randomLine(false))),
+            new GeometryCollection<>(Arrays.asList(randomMultiPoint(false), randomMultiLine(false))),
             new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
+                new GeometryCollection<>(Arrays.asList(randomPoint(false), randomLine(false))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_LINES);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false), randomPolygon(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiPolygon(false))),
-            new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomLine(false), randomPolygon(false))))))
+            new GeometryCollection<>(Arrays.asList(randomPoint(false), randomLine(false), randomPolygon(false))),
+            new GeometryCollection<>(Arrays.asList(randomMultiPoint(false), randomMultiPolygon(false))),
+            new GeometryCollection<>(Arrays.asList(
+                new GeometryCollection<>(Arrays.asList(randomLine(false), randomPolygon(false))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_POLYGONS);
     }
 

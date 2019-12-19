@@ -75,7 +75,7 @@ public enum DimensionalShapeType {
     }
 
     public static DimensionalShapeType forGeometry(Geometry geometry) {
-        return geometry.visit(new GeometryVisitor<>() {
+        return geometry.visit(new GeometryVisitor<DimensionalShapeType, RuntimeException>() {
             private DimensionalShapeType st = null;
 
             @Override
