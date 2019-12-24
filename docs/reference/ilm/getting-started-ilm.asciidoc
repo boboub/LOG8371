@@ -74,7 +74,6 @@ policy to an index. Since we wish specific settings to be applied to
 the new index created from Rollover, we will set the policy via
 index templates.
 
-
 [source,console]
 -----------------------
 PUT _template/datastream_template
@@ -136,6 +135,8 @@ to define an alias to be used for both reading and writing, with only one
 index being the index that is being written to at a time. Rollover swaps
 the write index to be the new index created from rollover, and sets the
 alias to be read-only for the source index.
+
+Note: In order for ILM to function correctly, all Elasticsearch interaction should now use the alias, not the original index name.  In our example above, API calls should be made to `datastream`.  Writing directly to `datastream-000001` will bypass the alias, and mean that even when ILM moves the write alias, data will still be written to the wrong index.
 
 [float]
 [[ilm-gs-check-progress]]
